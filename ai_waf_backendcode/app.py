@@ -90,7 +90,7 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max request size
 # DATABASE INITIALIZATION
 # ============================================================================
 
-@app.before_first_request
+@app.before_request
 def initialize_system():
     """Initialize all system components before first request"""
     print("\n" + "="*70)
