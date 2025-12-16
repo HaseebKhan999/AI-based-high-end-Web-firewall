@@ -171,9 +171,14 @@ if ADMIN_API_AVAILABLE:
     app.register_blueprint(admin_bp, url_prefix='/api/admin')
     logger.info("✅ Admin API registered at /api/admin")
 
-# TODO: Add traffic monitoring routes if Person 1 provides them
-# from routes.traffic import traffic_bp
-# app.register_blueprint(traffic_bp, url_prefix='/api/traffic')
+# Register traffic monitoring routes (Person 1)
+try:
+    from routes.traffic import traffic_bp
+    app.register_blueprint(traffic_bp, url_prefix='/api/traffic')
+    logger.info("✅ Traffic API registered at /api/traffic")
+except Exception as e:
+    logger.warning(f"⚠️  Traffic routes not available: {e}")
+
 
 # ============================================================================
 # ROOT ENDPOINTS
