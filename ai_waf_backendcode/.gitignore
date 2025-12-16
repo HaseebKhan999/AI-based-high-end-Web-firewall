@@ -1,14 +1,29 @@
+# ============================================================================
+# AI-WAF .gitignore
+# Files and directories to exclude from Git
+# ============================================================================
 
-cat > .gitignore << 'EOF'
-# Python
+# ============================================================================
+# ENVIRONMENT & SECRETS
+# ============================================================================
+.env
+.env.local
+.env.*.local
+*.key
+*.pem
+secrets/
+
+# ============================================================================
+# PYTHON
+# ============================================================================
+# Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
+
+# Distribution / packaging
 .Python
-env/
-venv/
-ENV/
 build/
 develop-eggs/
 dist/
@@ -21,42 +36,211 @@ parts/
 sdist/
 var/
 wheels/
+pip-wheel-metadata/
+share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+MANIFEST
 
-# Environment
-.env
-.venv
+# PyInstaller
+*.manifest
+*.spec
 
-# IDE
+# Unit test / coverage
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+
+# Virtual environments
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+.venv/
+
+# ============================================================================
+# MACHINE LEARNING MODELS & DATA
+# ============================================================================
+# Trained models (large files - use Git LFS if needed)
+data/trained_models/*.pkl
+data/trained_models/*.h5
+data/trained_models/*.pt
+data/trained_models/*.pth
+data/trained_models/*.onnx
+
+# Keep metadata files
+!data/trained_models/*.json
+!data/trained_models/.gitkeep
+
+# Large datasets
+data/datasets/*.csv
+data/datasets/*.txt
+data/datasets/*.json
+data/datasets/*.zip
+
+# Keep small example files
+!data/datasets/.gitkeep
+!data/datasets/README.md
+
+# Jupyter notebooks checkpoints
+.ipynb_checkpoints/
+*.ipynb
+
+# ============================================================================
+# LOGS
+# ============================================================================
+logs/
+*.log
+*.log.*
+app.log
+
+# Keep log directory
+!logs/.gitkeep
+
+# ============================================================================
+# DATABASE
+# ============================================================================
+# SQLite databases (if using for testing)
+*.db
+*.sqlite
+*.sqlite3
+
+# Database dumps
+*.sql.gz
+*.dump
+
+# ============================================================================
+# IDE / EDITORS
+# ============================================================================
+# VSCode
 .vscode/
+*.code-workspace
+
+# PyCharm
 .idea/
+*.iml
+*.iws
+.idea_modules/
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
 *.swp
 *.swo
 *~
 
-# Database
-*.db
-*.sqlite3
+# Emacs
+*~
+\#*\#
+.\#*
 
-# Logs
-logs/*.log
-*.log
-
-# ML Models (optional - if files are too large)
-# data/trained_models/*.pkl
-
-# OS
+# ============================================================================
+# OPERATING SYSTEM
+# ============================================================================
+# macOS
 .DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.Spotlight-V100
+.Trashes
+
+# Windows
 Thumbs.db
-EOF 
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
 
-# Datasets
-data/datasets/*.csv
+# Linux
+*~
 
-# Trained ML models
-data/trained_models/*.pkl
+# ============================================================================
+# TEMPORARY FILES
+# ============================================================================
+*.tmp
+*.temp
+*.bak
+*.backup
+tmp/
+temp/
 
-# Test scratch files
-test_*.py
+# ============================================================================
+# DOCKER (if using)
+# ============================================================================
+docker-compose.override.yml
+.dockerignore
+
+# ============================================================================
+# DEPLOYMENT
+# ============================================================================
+# Deployment configs (contain secrets)
+deploy.sh
+deployment/
+k8s/secrets/
+
+# ============================================================================
+# DOCUMENTATION
+# ============================================================================
+# Generated documentation
+docs/_build/
+site/
+
+# ============================================================================
+# TESTING
+# ============================================================================
+.pytest_cache/
+htmlcov/
+.tox/
+
+# ============================================================================
+# MISC
+# ============================================================================
+# Compressed files
+*.zip
+*.tar.gz
+*.rar
+
+# Node modules (if frontend is included)
+node_modules/
+package-lock.json
+yarn.lock
+
+# Static files cache
+staticfiles/
+media/
+
+# ============================================================================
+# PROJECT SPECIFIC
+# ============================================================================
+# Custom attack patterns (might contain sensitive info)
+custom_patterns/
+
+# User uploads
+uploads/
+
+# Cache directories
+.cache/
+__pycache__/
+
+# ============================================================================
+# KEEP THESE FILES
+# ============================================================================
+# Explicitly keep these important files
+!.gitkeep
+!README.md
+!requirements.txt
+!.env.example
+!schema.sql
