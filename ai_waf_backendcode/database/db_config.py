@@ -1,17 +1,17 @@
 """
 Database Configuration for AI-WAF (Python 3.14 Compatible)
 Person 2: Database Manager
-Neon PostgreSQL Database Connection
-Using psycopg2 directly (no SQLAlchemy ORM)
+SQLite Database (Local - No Network Required)
+Compatible with original psycopg2 interface
 """
 
 import os
-import psycopg2
-from psycopg2 import pool
-from psycopg2.extras import RealDictCursor
+import sqlite3
+import json
 from dotenv import load_dotenv
 import logging
 from contextlib import contextmanager
+from datetime import datetime
 
 # Load environment variables
 load_dotenv()
@@ -20,35 +20,43 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Database configuration
-DATABASE_URL = os.getenv('DATABASE_URL')
+# Database configuration - SQLite
+DB_PATH = os.path.join(os.path.dirname(__file__), '..', 'data', 'ai_waf.db')
 
-if not DATABASE_URL:
-    # Construct from individual components
-    DB_USER = os.getenv('DB_USER')
-    DB_PASSWORD = os.getenv('DB_PASSWORD')
-    DB_HOST = os.getenv('DB_HOST')
-    DB_PORT = os.getenv('DB_PORT', '5432')
-    DB_NAME = os.getenv('DB_NAME')
-    
-    if all([DB_USER, DB_PASSWORD, DB_HOST, DB_NAME]):
-        DATABASE_URL = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}?sslmode=require"
-    else:
-        raise ValueError("Database configuration not found in .env file")
+# Ensure data directory exists
+os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
 
-# Connection pool for efficient database connections
+# Global connection pool simulation
 connection_pool = None
 
 
+class DictRow(sqlite3.Row):
+    """Custom Row class that behaves like psycopg2 RealDictCursor"""
+    def __getitem__(self, key):
+        if isinstance(key, int):
+            return super().__getitem__(key)
+        return self[self.keys().index(key)]
+    
+    def __iter__(self):
+        for key in self.keys():
+            yield key
+    
+    def keys(self):
+        return super().keys()
+    
+    def values(self):
+        return [self[key] for key in self.keys()]
+    
+    def items(self):
+        return [(key, self[key]) for key in self.keys()]
+
+
 def init_connection_pool():
-    """Initialize database connection pool"""
+    """Initialize database connection pool (SQLite - always available)"""
     global connection_pool
     try:
-        connection_pool = psycopg2.pool.SimpleConnectionPool(
-            minconn=1,
-            maxconn=10,
-            dsn=DATABASE_URL
-        )
+        # SQLite doesn't need a pool, but we simulate for compatibility
+        connection_pool = True
         logger.info("✅ Database connection pool created successfully")
         return True
     except Exception as e:
@@ -69,10 +77,8 @@ def get_db_connection():
     """
     conn = None
     try:
-        if connection_pool is None:
-            init_connection_pool()
-        
-        conn = connection_pool.getconn()
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = DictRow
         yield conn
         conn.commit()
     except Exception as e:
@@ -82,22 +88,22 @@ def get_db_connection():
         raise
     finally:
         if conn:
-            connection_pool.putconn(conn)
+            conn.close()
 
 
 @contextmanager
 def get_db_cursor(commit=True):
     """
     Context manager for database cursor with automatic commit/rollback.
-    Returns results as dictionaries.
+    Returns results as dictionaries (compatible with RealDictCursor).
     
     Usage:
         with get_db_cursor() as cur:
-            cur.execute("SELECT * FROM traffic_logs WHERE id = %s", (1,))
+            cur.execute("SELECT * FROM traffic_logs WHERE id = ?", (1,))
             result = cur.fetchone()
     """
     with get_db_connection() as conn:
-        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        cursor = conn.cursor()
         try:
             yield cursor
             if commit:
@@ -113,9 +119,10 @@ def test_connection():
     """Test database connection"""
     try:
         with get_db_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute("SELECT 1")
-                result = cur.fetchone()
+            cur = conn.cursor()
+            cur.execute("SELECT 1")
+            result = cur.fetchone()
+            cur.close()
         logger.info("✅ Database connection test successful")
         return True
     except Exception as e:
@@ -130,77 +137,77 @@ def init_db():
             # Create traffic_logs table
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS traffic_logs (
-                    id SERIAL PRIMARY KEY,
-                    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    ip_address VARCHAR(45) NOT NULL,
-                    method VARCHAR(10) NOT NULL,
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    ip_address TEXT NOT NULL,
+                    method TEXT NOT NULL,
                     url TEXT NOT NULL,
-                    headers JSONB,
+                    headers TEXT,
                     body TEXT,
-                    query_params JSONB,
-                    threat_score FLOAT DEFAULT 0.0,
-                    is_blocked BOOLEAN DEFAULT FALSE,
-                    attack_type VARCHAR(100),
-                    features JSONB,
-                    response_time FLOAT
+                    query_params TEXT,
+                    threat_score REAL DEFAULT 0.0,
+                    is_blocked INTEGER DEFAULT 0,
+                    attack_type TEXT,
+                    features TEXT,
+                    response_time REAL
                 )
             """)
             
             # Create attack_patterns table
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS attack_patterns (
-                    id SERIAL PRIMARY KEY,
-                    pattern_name VARCHAR(100) NOT NULL UNIQUE,
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    pattern_name TEXT NOT NULL UNIQUE,
                     pattern_regex TEXT NOT NULL,
-                    severity VARCHAR(20) DEFAULT 'medium',
+                    severity TEXT DEFAULT 'medium',
                     description TEXT,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
             """)
             
             # Create whitelist table
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS whitelist (
-                    id SERIAL PRIMARY KEY,
-                    ip_address VARCHAR(45) NOT NULL UNIQUE,
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    ip_address TEXT NOT NULL UNIQUE,
                     reason TEXT,
-                    added_by VARCHAR(100),
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    added_by TEXT,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
             """)
             
             # Create blacklist table
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS blacklist (
-                    id SERIAL PRIMARY KEY,
-                    ip_address VARCHAR(45) NOT NULL UNIQUE,
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    ip_address TEXT NOT NULL UNIQUE,
                     reason TEXT,
-                    added_by VARCHAR(100),
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    expires_at TIMESTAMP
+                    added_by TEXT,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    expires_at DATETIME
                 )
             """)
             
             # Create waf_config table
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS waf_config (
-                    id SERIAL PRIMARY KEY,
-                    config_key VARCHAR(100) NOT NULL UNIQUE,
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    config_key TEXT NOT NULL UNIQUE,
                     config_value TEXT NOT NULL,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
             """)
             
             # Create ml_models table
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS ml_models (
-                    id SERIAL PRIMARY KEY,
-                    model_name VARCHAR(100) NOT NULL,
-                    model_version VARCHAR(20) NOT NULL,
-                    accuracy FLOAT,
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    model_name TEXT NOT NULL,
+                    model_version TEXT NOT NULL,
+                    accuracy REAL,
                     file_path TEXT,
                     description TEXT,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                     UNIQUE(model_name, model_version)
                 )
             """)
@@ -245,9 +252,8 @@ def _insert_default_config(cur):
     
     for key, value in default_configs:
         cur.execute("""
-            INSERT INTO waf_config (config_key, config_value)
-            VALUES (%s, %s)
-            ON CONFLICT (config_key) DO NOTHING
+            INSERT OR IGNORE INTO waf_config (config_key, config_value)
+            VALUES (?, ?)
         """, (key, value))
     
     logger.info("✅ Default configuration inserted")
@@ -257,14 +263,32 @@ def close_db():
     """Close all database connections"""
     global connection_pool
     if connection_pool:
-        connection_pool.closeall()
+        connection_pool = None
         logger.info("✅ Database connections closed")
+
+
+# Helper functions for JSON handling (SQLite stores JSON as TEXT)
+def json_to_text(data):
+    """Convert Python dict/list to JSON string for SQLite storage"""
+    if data is None:
+        return None
+    return json.dumps(data)
+
+
+def text_to_json(text):
+    """Convert JSON string from SQLite to Python dict/list"""
+    if text is None:
+        return None
+    try:
+        return json.loads(text)
+    except:
+        return None
 
 
 if __name__ == "__main__":
     """Test database connection"""
     print("\n" + "="*50)
-    print("🔧 Testing Neon Database Connection")
+    print("🔧 Testing SQLite Database Connection")
     print("="*50 + "\n")
     
     # Initialize connection pool
@@ -273,7 +297,8 @@ if __name__ == "__main__":
         
         # Test connection
         if test_connection():
-            print("✅ SUCCESS: Connected to Neon database!")
+            print("✅ SUCCESS: Connected to SQLite database!")
+            print(f"✅ Database location: {DB_PATH}")
             
             # Initialize tables
             print("\n📊 Creating database tables...")
@@ -284,11 +309,22 @@ if __name__ == "__main__":
                 with get_db_cursor() as cur:
                     cur.execute("""
                         SELECT COUNT(*) as count 
-                        FROM information_schema.tables 
-                        WHERE table_schema = 'public'
+                        FROM sqlite_master 
+                        WHERE type='table' AND name NOT LIKE 'sqlite_%'
                     """)
                     result = cur.fetchone()
                     print(f"✅ Total tables created: {result['count']}")
+                    
+                    # List all tables
+                    cur.execute("""
+                        SELECT name FROM sqlite_master 
+                        WHERE type='table' AND name NOT LIKE 'sqlite_%'
+                        ORDER BY name
+                    """)
+                    tables = cur.fetchall()
+                    print("\n📋 Tables created:")
+                    for table in tables:
+                        print(f"   - {table['name']}")
             
         else:
             print("❌ FAILED: Could not connect to database")
