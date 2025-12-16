@@ -56,8 +56,8 @@ class DatabaseOperations:
                         query_params, threat_score, is_blocked, 
                         attack_type, features, response_time
                     ) VALUES (
-                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
-                    ) RETURNING id
+                        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                    )
                 """, (
                     request_data.get('ip_address'),
                     request_data.get('method'),
@@ -72,7 +72,7 @@ class DatabaseOperations:
                     request_data.get('response_time', 0.0)
                 ))
                 
-                log_id = cur.fetchone()['id']
+                log_id = cur.lastrowid
                 logger.info(f"✅ Request logged with ID: {log_id}")
                 return log_id
                 
@@ -101,7 +101,7 @@ class DatabaseOperations:
                         threat_score, is_blocked, attack_type, response_time
                     FROM traffic_logs
                     ORDER BY timestamp DESC
-                    LIMIT %s OFFSET %s
+                    LIMIT ? OFFSET ?
                 """, (limit, offset))
                 
                 logs = cur.fetchall()
@@ -130,9 +130,9 @@ class DatabaseOperations:
                         id, timestamp, ip_address, method, url,
                         threat_score, attack_type, response_time
                     FROM traffic_logs
-                    WHERE is_blocked = TRUE
+                    WHERE is_blocked = 1
                     ORDER BY timestamp DESC
-                    LIMIT %s
+                    LIMIT ?
                 """, (limit,))
                 
                 logs = cur.fetchall()
@@ -149,7 +149,7 @@ class DatabaseOperations:
         try:
             with get_db_cursor() as cur:
                 cur.execute("""
-                    SELECT * FROM traffic_logs WHERE id = %s
+                    SELECT * FROM traffic_logs WHERE id = ?
                 """, (log_id,))
                 
                 log = cur.fetchone()
@@ -180,7 +180,7 @@ class DatabaseOperations:
                 cur.execute("""
                     SELECT COUNT(*) as blocked 
                     FROM traffic_logs 
-                    WHERE is_blocked = TRUE
+                    WHERE is_blocked = 1
                 """)
                 stats['blocked_requests'] = cur.fetchone()['blocked']
                 
@@ -188,7 +188,7 @@ class DatabaseOperations:
                 cur.execute("""
                     SELECT COUNT(*) as recent 
                     FROM traffic_logs 
-                    WHERE timestamp > NOW() - INTERVAL '24 hours'
+                    WHERE timestamp > datetime('now', '-24 hours')
                 """)
                 stats['requests_24h'] = cur.fetchone()['recent']
                 
@@ -196,8 +196,8 @@ class DatabaseOperations:
                 cur.execute("""
                     SELECT COUNT(*) as attacks 
                     FROM traffic_logs 
-                    WHERE is_blocked = TRUE 
-                    AND timestamp > NOW() - INTERVAL '24 hours'
+                    WHERE is_blocked = 1 
+                    AND timestamp > datetime('now', '-24 hours')
                 """)
                 stats['attacks_24h'] = cur.fetchone()['attacks']
                 
@@ -205,7 +205,7 @@ class DatabaseOperations:
                 cur.execute("""
                     SELECT attack_type, COUNT(*) as count
                     FROM traffic_logs
-                    WHERE is_blocked = TRUE AND attack_type IS NOT NULL
+                    WHERE is_blocked = 1 AND attack_type IS NOT NULL
                     GROUP BY attack_type
                     ORDER BY count DESC
                     LIMIT 10
@@ -216,7 +216,7 @@ class DatabaseOperations:
                 cur.execute("""
                     SELECT ip_address, COUNT(*) as count
                     FROM traffic_logs
-                    WHERE is_blocked = TRUE
+                    WHERE is_blocked = 1
                     GROUP BY ip_address
                     ORDER BY count DESC
                     LIMIT 10
@@ -261,7 +261,7 @@ class DatabaseOperations:
                 cur.execute("""
                     SELECT COUNT(*) as count 
                     FROM whitelist 
-                    WHERE ip_address = %s
+                    WHERE ip_address = ?
                 """, (ip_address,))
                 
                 result = cur.fetchone()
@@ -278,9 +278,8 @@ class DatabaseOperations:
         try:
             with get_db_cursor() as cur:
                 cur.execute("""
-                    INSERT INTO whitelist (ip_address, reason, added_by)
-                    VALUES (%s, %s, %s)
-                    ON CONFLICT (ip_address) DO NOTHING
+                    INSERT OR IGNORE INTO whitelist (ip_address, reason, added_by)
+                    VALUES (?, ?, ?)
                 """, (ip_address, reason, added_by))
                 
                 logger.info(f"✅ IP {ip_address} added to whitelist")
@@ -297,7 +296,7 @@ class DatabaseOperations:
         try:
             with get_db_cursor() as cur:
                 cur.execute("""
-                    DELETE FROM whitelist WHERE ip_address = %s
+                    DELETE FROM whitelist WHERE ip_address = ?
                 """, (ip_address,))
                 
                 logger.info(f"✅ IP {ip_address} removed from whitelist")
@@ -345,8 +344,8 @@ class DatabaseOperations:
                 cur.execute("""
                     SELECT COUNT(*) as count 
                     FROM blacklist 
-                    WHERE ip_address = %s 
-                    AND (expires_at IS NULL OR expires_at > NOW())
+                    WHERE ip_address = ? 
+                    AND (expires_at IS NULL OR expires_at > datetime('now'))
                 """, (ip_address,))
                 
                 result = cur.fetchone()
@@ -380,13 +379,8 @@ class DatabaseOperations:
             
             with get_db_cursor() as cur:
                 cur.execute("""
-                    INSERT INTO blacklist (ip_address, reason, added_by, expires_at)
-                    VALUES (%s, %s, %s, %s)
-                    ON CONFLICT (ip_address) 
-                    DO UPDATE SET 
-                        reason = EXCLUDED.reason,
-                        expires_at = EXCLUDED.expires_at,
-                        created_at = NOW()
+                    INSERT OR REPLACE INTO blacklist (ip_address, reason, added_by, expires_at, created_at)
+                    VALUES (?, ?, ?, ?, datetime('now'))
                 """, (ip_address, reason, added_by, expires_at))
                 
                 logger.info(f"✅ IP {ip_address} added to blacklist")
@@ -421,7 +415,7 @@ class DatabaseOperations:
             with get_db_cursor() as cur:
                 cur.execute("""
                     SELECT * FROM blacklist 
-                    WHERE expires_at IS NULL OR expires_at > NOW()
+                    WHERE expires_at IS NULL OR expires_at > datetime('now')
                     ORDER BY created_at DESC
                 """)
                 
@@ -477,12 +471,8 @@ class DatabaseOperations:
         try:
             with get_db_cursor() as cur:
                 cur.execute("""
-                    INSERT INTO waf_config (config_key, config_value)
-                    VALUES (%s, %s)
-                    ON CONFLICT (config_key) 
-                    DO UPDATE SET 
-                        config_value = EXCLUDED.config_value,
-                        updated_at = NOW()
+                    INSERT OR REPLACE INTO waf_config (config_key, config_value, updated_at)
+                    VALUES (?, ?, datetime('now'))
                 """, (config_key, config_value))
                 
                 logger.info(f"✅ Config updated: {config_key} = {config_value}")
@@ -509,15 +499,9 @@ class DatabaseOperations:
         try:
             with get_db_cursor() as cur:
                 cur.execute("""
-                    INSERT INTO ml_models (
-                        model_name, model_version, accuracy, file_path, description
-                    ) VALUES (%s, %s, %s, %s, %s)
-                    ON CONFLICT (model_name, model_version) 
-                    DO UPDATE SET 
-                        accuracy = EXCLUDED.accuracy,
-                        file_path = EXCLUDED.file_path,
-                        description = EXCLUDED.description,
-                        created_at = NOW()
+                    INSERT OR REPLACE INTO ml_models (
+                        model_name, model_version, accuracy, file_path, description, created_at
+                    ) VALUES (?, ?, ?, ?, ?, datetime('now'))
                 """, (model_name, model_version, accuracy, file_path, description))
                 
                 logger.info(f"✅ Model metadata saved: {model_name} v{model_version}")
@@ -544,7 +528,7 @@ class DatabaseOperations:
                 return dict(result) if result else None
                 
         except Exception as e:
-            logger.error(f"❌ Failed to get latest model: {e}")
+            logger.error(f"Failed to get latest model: {e}")
             return None
     
     
@@ -560,7 +544,7 @@ class DatabaseOperations:
                 return [dict(row) for row in cur.fetchall()]
                 
         except Exception as e:
-            logger.error(f"❌ Failed to get all models: {e}")
+            logger.error(f" Failed to get all models: {e}")
             return []
 
 
@@ -587,13 +571,13 @@ if __name__ == "__main__":
         'features': [100, 50, 2, 10, 3.5, 0, 0, 0, 0, 0, 0, 0, 3, 5, 1, 8, 0.2, 0.6, 0, 15],
         'response_time': 0.015
     })
-    print(f"✅ Log ID: {log_id}\n")
+    print(f"Log ID: {log_id}\n")
     
     # Test 2: Get statistics
     print("Test 2: Getting statistics...")
     stats = db_ops.get_statistics()
-    print(f"✅ Total Requests: {stats.get('total_requests', 0)}")
-    print(f"✅ Blocked Requests: {stats.get('blocked_requests', 0)}\n")
+    print(f"Total Requests: {stats.get('total_requests', 0)}")
+    print(f"Blocked Requests: {stats.get('blocked_requests', 0)}\n")
     
     # Test 3: Whitelist operations
     print("Test 3: Whitelist operations...")
@@ -605,13 +589,13 @@ if __name__ == "__main__":
     print("Test 4: Blacklist operations...")
     db_ops.add_to_blacklist('10.0.0.1', 'Suspicious activity', expires_hours=24)
     is_blacklisted = db_ops.check_blacklist('10.0.0.1')
-    print(f"✅ IP 10.0.0.1 blacklisted: {is_blacklisted}\n")
+    print(f"IP 10.0.0.1 blacklisted: {is_blacklisted}\n")
     
     # Test 5: Configuration
     print("Test 5: Configuration operations...")
     config = db_ops.get_all_config()
-    print(f"✅ Loaded {len(config)} configuration values\n")
+    print(f"Loaded {len(config)} configuration values\n")
     
     print("="*50)
-    print("✅ All tests passed!")
+    print("All tests passed!")
     print("="*50)

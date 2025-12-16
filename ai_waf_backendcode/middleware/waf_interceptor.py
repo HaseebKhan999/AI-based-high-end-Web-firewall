@@ -363,7 +363,7 @@ class WAFInterceptor:
             
             # Step 2: Check whitelist/blacklist
             should_block, reason = self.check_whitelist_blacklist(request_data['ip_address'])
-            
+                  
             if should_block is not None:
                 # IP is whitelisted or blacklisted
                 response_time = time.time() - start_time

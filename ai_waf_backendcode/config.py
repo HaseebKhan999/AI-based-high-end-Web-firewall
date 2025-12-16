@@ -48,26 +48,23 @@ class Config:
 # ============================================================================
 
 class DatabaseConfig:
-    """Database configuration settings"""
+    """Database configuration settings for SQLite"""
     
-    # Neon PostgreSQL connection
-    DATABASE_URL = os.getenv('DATABASE_URL')
+    # SQLite database path
+    DB_PATH = BASE_DIR / 'data' / 'ai_waf.db'
     
-    # If DATABASE_URL is not set, construct from individual components
-    if not DATABASE_URL:
-        DB_USER = os.getenv('DB_USER', 'postgres')
-        DB_PASSWORD = os.getenv('DB_PASSWORD', 'password')
-        DB_HOST = os.getenv('DB_HOST', 'localhost')
-        DB_PORT = os.getenv('DB_PORT', '5432')
-        DB_NAME = os.getenv('DB_NAME', 'ai_waf')
-        
-        DATABASE_URL = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}?sslmode=require"
+    # Ensure data directory exists
+    DB_PATH.parent.mkdir(exist_ok=True)
     
-    # Connection pool settings
-    DB_POOL_MIN = int(os.getenv('DB_POOL_MIN', 1))
-    DB_POOL_MAX = int(os.getenv('DB_POOL_MAX', 10))
+    # Database file path as string (for compatibility)
+    DATABASE_URL = f"sqlite:///{DB_PATH}"
     
-    # Query timeout (seconds)
+    # SQLite doesn't need connection pooling
+    # These are kept for compatibility but not used
+    DB_POOL_MIN = 1
+    DB_POOL_MAX = 1
+    
+    # Query timeout (seconds) - SQLite handles this differently
     DB_QUERY_TIMEOUT = int(os.getenv('DB_QUERY_TIMEOUT', 30))
     
     # Log retention (days)
@@ -394,8 +391,9 @@ def print_config():
     print(f"🔌 Port: {CurrentConfig.PORT}")
     
     print(f"\n💾 Database:")
-    print(f"   Host: {DatabaseConfig.DB_HOST if not DatabaseConfig.DATABASE_URL else 'Using DATABASE_URL'}")
-    print(f"   Pool: {DatabaseConfig.DB_POOL_MIN}-{DatabaseConfig.DB_POOL_MAX}")
+    print(f"   Type: SQLite")
+    print(f"   Path: {DatabaseConfig.DB_PATH}")
+    print(f"   URL: {DatabaseConfig.DATABASE_URL}")
     
     print(f"\n🛡️ WAF:")
     print(f"   Enabled: {WAFConfig.ENABLE_WAF}")
