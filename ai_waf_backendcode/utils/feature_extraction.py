@@ -27,7 +27,25 @@ class FeatureExtractor:
             'concat', 'char', 'varchar', 'nchar', 'nvarchar', 'syscolumns',
             'sysobjects', 'xp_', 'sp_', 'declare', 'cast', 'convert',
             'where', 'from', 'table', 'database', 'column', 'or', 'and',
-            '--', '/*', '*/', '@@', '@'
+            '--', '/*', '*/', '@@', '@', 'order by', 'group by', 'having',
+            'limit', 'offset', 'distinct', 'as', 'join', 'inner join',
+            'left join', 'right join', 'full join', 'on', 'using', 'exists',
+            'in', 'not in', 'between', 'like', 'not like', 'is null',
+            'is not null', 'case', 'when', 'then', 'else', 'end'
+        ]
+        
+        # SQL Injection patterns (regex)
+        self.sql_patterns = [
+            r"(\d+['\"]\s*(or|and)\s*['\"]\d+['\"]\s*=\s*['\"]\d+)",  # Classic: 1' OR '1'='1
+            r"(\d+\s*(or|and)\s*\d+=\d+)",  # Numeric: 1 OR 1=1
+            r"(['\"]\s*(or|and)\s*['\"]\s*=\s*['\"])",  # Empty string: ' OR '='
+            r"(--|#|/\*|\*/)",  # Comments
+            r"(;\s*(select|union|insert|update|delete|drop|create|alter))",  # Stacked queries
+            r"(\bunion\s+select\b)",  # Union select
+            r"(\bselect\s+.*\s+from\s+.*\s+where\s+.*\s*=\s*['\"]\s*(or|and))",  # Complex injections
+            r"(\bexec\s*\(\s*['\"])",  # Exec with quotes
+            r"(\bxp_\w+\s*\()",  # Extended stored procedures
+            r"(\bsp_\w+\s*\()",  # System stored procedures
         ]
         
         # XSS (Cross-Site Scripting) patterns
@@ -114,6 +132,22 @@ class FeatureExtractor:
         """
         text_lower = text.lower()
         count = sum(1 for keyword in self.sql_keywords if keyword in text_lower)
+        return (1 if count > 0 else 0, count)
+    
+    def has_sql_patterns(self, text):
+        """
+        Check if text matches SQL injection patterns (regex)
+        
+        Args:
+            text (str): Input text
+            
+        Returns:
+            tuple: (has_patterns (0/1), pattern_count)
+        """
+        count = 0
+        for pattern in self.sql_patterns:
+            if re.search(pattern, text, re.IGNORECASE):
+                count += 1
         return (1 if count > 0 else 0, count)
     
     def has_xss_patterns(self, text):
@@ -267,8 +301,10 @@ class FeatureExtractor:
         # FEATURE 5: entropy
         entropy = self.calculate_entropy(full_text)
         
-        # FEATURES 6-7: SQL keywords
-        has_sql, sql_count = self.has_sql_keywords(full_text)
+        # FEATURES 6-7: SQL detection (keywords + patterns)
+        has_sql_kw, sql_kw_count = self.has_sql_keywords(full_text)
+        has_sql_pat, sql_pat_count = self.has_sql_patterns(full_text)
+        sql_combined_count = sql_kw_count + sql_pat_count
         
         # FEATURES 8-9: XSS patterns
         has_xss, xss_count = self.has_xss_patterns(full_text)
@@ -310,8 +346,8 @@ class FeatureExtractor:
             num_parameters,      # 3
             special_char_count,  # 4
             entropy,             # 5
-            has_sql,             # 6
-            sql_count,           # 7
+            has_sql_kw,          # 6: has_sql_keywords
+            sql_combined_count,  # 7: combined sql keyword + pattern count
             has_xss,             # 8
             xss_count,           # 9
             has_path_trav,       # 10
@@ -343,7 +379,7 @@ class FeatureExtractor:
             'special_char_count',
             'entropy',
             'has_sql_keywords',
-            'sql_keyword_count',
+            'sql_combined_count',  # Updated: keywords + patterns
             'has_xss_patterns',
             'xss_keyword_count',
             'has_path_traversal',

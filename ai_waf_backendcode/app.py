@@ -142,8 +142,7 @@ def apply_waf_protection():
         '/health',
         '/docs',
         '/api/admin',
-        '/static',
-        '/'
+        '/static'
     ]
     
     # Check if request path should be protected
@@ -155,7 +154,7 @@ def apply_waf_protection():
     
     # Apply WAF if protection is needed and available
     if should_protect and WAF_AVAILABLE:
-        result = waf_middleware()
+        result = waf.intercept(request)
         if result is not None:
             # Request was blocked by WAF
             return result

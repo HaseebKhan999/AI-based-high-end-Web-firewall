@@ -177,20 +177,115 @@ class WAFInterceptor:
             # Extract features for rule-based analysis
             features = self.feature_extractor.extract_features(request_data)
             
-            # Simple rule-based detection
-            if features[6] > 2:  # sql_keyword_count > 2
-                return 0.95, "SQL Injection"
-            elif features[8] > 0:  # xss_keyword_count > 0
+            # Enhanced SQL injection detection
+            sql_combined_count = features[6]  # Combined keywords + patterns
+            query_string = request_data.get('query_string', '')
+            
+            # XSS detection (check first - higher priority)
+            if features[8] > 0:  # xss_keyword_count > 0
                 return 0.90, "XSS"
+            
+            # SQL injection rules (more sensitive)
+            if sql_combined_count >= 2:  # High confidence
+                return 0.95, "SQL Injection"
+            elif sql_combined_count >= 1 and self._is_suspicious_sql_context(query_string):
+                return 0.85, "SQL Injection"  # Medium confidence with context
+            elif sql_combined_count >= 1 and len(query_string) > 10:  # Single keyword in long query
+                return 0.75, "SQL Injection"
+            
+            # Other attacks
             elif features[10] == 1:  # has_path_traversal
                 return 0.85, "Path Traversal"
             elif features[11] == 1:  # has_command_injection
                 return 0.88, "Command Injection"
+            
+            # Additional rule-based detections
+            # 1. Suspicious User-Agent
+            user_agent = request_data.get('user_agent', '').lower()
+            suspicious_uas = ['sqlmap', 'nmap', 'burp', 'zaproxy', 'metasploit', 'acunetix', 'nessus']
+            if any(ua in user_agent for ua in suspicious_uas):
+                return 0.80, "Suspicious User-Agent"
+            
+            # 2. Unusual HTTP Method
+            method = request_data.get('method', '').upper()
+            allowed_methods = ['GET', 'POST', 'PUT', 'DELETE', 'HEAD', 'OPTIONS', 'PATCH']
+            if method not in allowed_methods:
+                return 0.75, "Unusual HTTP Method"
+            
+            # 3. Long URL or Query String
+            url = request_data.get('url', '')
+            if len(url) > 2048:  # Common limit
+                return 0.70, "Long URL"
+            if len(query_string) > 1024:
+                return 0.65, "Long Query String"
+            
+            # 4. Multiple Query Parameters (potential parameter pollution)
+            query_params = request_data.get('query_params', {})
+            if isinstance(query_params, dict) and len(query_params) > 10:
+                return 0.60, "Excessive Query Parameters"
+            
+            # 5. Suspicious Headers
+            headers = request_data.get('headers', {})
+            header_str = str(headers).lower()
+            if any(keyword in header_str for keyword in ['<script>', 'javascript:', 'onload=', 'onerror=']):
+                return 0.85, "Header Injection"
+            
+            # 6. Suspicious Body Content
+            body = request_data.get('body', '').lower()
+            if any(pattern in body for pattern in ['<script>', 'javascript:', 'eval(', 'document.cookie']):
+                return 0.90, "Body XSS"
+            
+            # 7. File Inclusion Attempts
+            path = request_data.get('path', '').lower()
+            if any(fi in path for fi in ['/etc/passwd', '/proc/self/environ', 'php://input', 'data://']):
+                return 0.88, "File Inclusion"
+            
+            # 8. Directory Traversal Variants
+            if '../' in path or '..\\' in path or '%2e%2e' in path:
+                return 0.85, "Directory Traversal"
+            
+            # 9. Command Injection in Body or Query
+            if any(cmd in (query_string + body) for cmd in [';ls', '|cat', '`whoami`', '$(uname)', '&&', '||']):
+                return 0.88, "Command Injection"
+            
+            # 10. Rate Limiting Indicator (though not full rate limiting, flag rapid requests)
+            # This would need session tracking, but for now, check if IP has many requests (placeholder)
+            # Assuming we have a simple counter, but since it's per request, skip for now
+            
             else:
                 return 0.15, "Benign"
         except Exception as e:
             print(f"[ERROR] Rule-based prediction failed: {e}")
             return 0.15, "Benign"
+    
+    def _is_suspicious_sql_context(self, query_string):
+        """
+        Check if SQL keywords appear in suspicious contexts
+        
+        Args:
+            query_string (str): Query string to analyze
+            
+        Returns:
+            bool: True if context is suspicious
+        """
+        if not query_string:
+            return False
+            
+        # Check for SQL keywords in query parameters with quotes/equals
+        suspicious_indicators = [
+            '\'', '"', '=', ' or ', ' and ', '--', '/*', '*/'
+        ]
+        
+        sql_keywords_in_query = ['or', 'and', 'select', 'union', 'insert', 'update', 'delete']
+        
+        for keyword in sql_keywords_in_query:
+            if keyword in query_string.lower():
+                # Check if keyword appears with suspicious characters
+                for indicator in suspicious_indicators:
+                    if indicator in query_string:
+                        return True
+        
+        return False
     
     def ml_predict(self, request_data):
         """
