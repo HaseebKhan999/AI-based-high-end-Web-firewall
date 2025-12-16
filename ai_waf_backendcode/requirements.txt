@@ -1,18 +1,8 @@
-# Flask and Web Framework
 Flask==3.0.0
 flask-cors==4.0.0
 python-dotenv==1.0.0
 
-# Database
-psycopg2-binary==2.9.9
-SQLAlchemy==2.0.23
-
-# Machine Learning (for Person 3) - Updated for Python 3.14
-scikit-learn==1.5.2
-pandas==2.2.3
-numpy==2.0.2
-joblib==1.4.2
-
-# Utilities
-requests==2.31.0
-python-dateutil==2.8.2
+numpy
+pandas
+scikit-learn
+joblib

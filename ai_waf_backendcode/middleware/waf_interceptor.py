@@ -1,12 +1,13 @@
 """
 WAF Interceptor Middleware
 Author: Person 1 (Traffic Interceptor & Feature Extraction)
+Integrated: Person 2 (Database) + Person 3 (ML Models)
 Purpose: Intercepts all incoming HTTP requests and applies WAF protection
 
 This middleware:
 1. Captures every HTTP request before it reaches the application
 2. Extracts features from the request
-3. Calls ML model for threat prediction
+3. Calls ML models for threat prediction
 4. Blocks malicious requests or allows benign ones
 5. Logs everything to database
 """
@@ -25,18 +26,64 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from utils.feature_extraction import FeatureExtractor
 
-# Import database operations
-from database.db_operations import DatabaseOperations
+# ============================================================================
+# PERSON 2's DATABASE INTEGRATION
+# ============================================================================
+try:
+    from database.db_operations import DatabaseOperations
+    db_ops = DatabaseOperations()
+    print("✅ Database operations loaded successfully")
+    DB_AVAILABLE = True
+except Exception as e:
+    print(f"⚠️  Database not available: {e}")
+    print("   WAF will run without database logging")
+    DB_AVAILABLE = False
+    db_ops = None
 
-# Import ML model
-from models.ml_model import MLModel
 
+# ============================================================================
+# PERSON 3's ML MODELS INTEGRATION
+# ============================================================================
+try:
+    from models.ml_model import MLModel
+    from models.anomaly_detector import AnomalyDetector
+    
+    print("🤖 Initializing AI-WAF ML Models...")
+    
+    # Initialize Random Forest Classifier
+    ml_classifier = MLModel()
+    ml_loaded = ml_classifier.load_model()
+    
+    # Initialize Isolation Forest Anomaly Detector
+    anomaly_detector = AnomalyDetector()
+    anomaly_loaded = anomaly_detector.load_model()
+    
+    if ml_loaded and anomaly_loaded:
+        print("✅ Random Forest Classifier loaded successfully")
+        print("✅ Isolation Forest Anomaly Detector loaded successfully")
+        ML_AVAILABLE = True
+    elif ml_loaded:
+        print("✅ Random Forest Classifier loaded successfully")
+        print("⚠️  Isolation Forest not available - using classifier only")
+        ML_AVAILABLE = True
+    else:
+        print("⚠️  ML models not loaded - falling back to rule-based detection")
+        ML_AVAILABLE = False
+        
+except Exception as e:
+    print(f"⚠️  ML models not available: {e}")
+    print("   Falling back to rule-based detection")
+    ML_AVAILABLE = False
+    ml_classifier = None
+    anomaly_detector = None
+    anomaly_loaded = False
 
 
 class WAFInterceptor:
     """
     Main WAF Interceptor Class
     Handles all request interception and threat detection logic
+    Now powered by ML models and database!
     """
     
     def __init__(self, threshold=0.7):
@@ -48,9 +95,10 @@ class WAFInterceptor:
         """
         self.threshold = threshold
         self.feature_extractor = FeatureExtractor()
-        self.ml_model = MLModel()  # Initialize ML model
         self.blocked_count = 0
         self.allowed_count = 0
+        self.ml_available = ML_AVAILABLE
+        self.db_available = DB_AVAILABLE
 
     def extract_request_data(self, req):
         """
@@ -94,15 +142,26 @@ class WAFInterceptor:
         Returns:
             tuple: (should_block, reason)
         """
-        # Check whitelist first (highest priority)
-        if db_ops.check_whitelist(ip_address):
-            return False, "Whitelisted IP"
+        if not self.db_available:
+            # Fallback: localhost is whitelisted
+            if ip_address in ['127.0.0.1', 'localhost', '::1']:
+                return False, "Whitelisted IP (default)"
+            return None, None
         
-        # Check blacklist
-        if db_ops.check_blacklist(ip_address):
-            return True, "Blacklisted IP"
-        
-        return None, None
+        try:
+            # Check whitelist first (highest priority)
+            if db_ops.check_whitelist(ip_address):
+                return False, "Whitelisted IP"
+            
+            # Check blacklist
+            if db_ops.check_blacklist(ip_address):
+                return True, "Blacklisted IP"
+            
+            return None, None
+            
+        except Exception as e:
+            print(f"[ERROR] Whitelist/Blacklist check failed: {e}")
+            return None, None
     
     def rule_based_predict(self, request_data):
         """
@@ -129,8 +188,70 @@ class WAFInterceptor:
                 return 0.88, "Command Injection"
             else:
                 return 0.15, "Benign"
-        except:
+        except Exception as e:
+            print(f"[ERROR] Rule-based prediction failed: {e}")
             return 0.15, "Benign"
+    
+    def ml_predict(self, request_data):
+        """
+        ML-based prediction using Person 3's trained models
+        
+        Args:
+            request_data (dict): Request data dictionary
+            
+        Returns:
+            tuple: (threat_score, attack_type)
+        """
+        if not self.ml_available or ml_classifier is None:
+            # Fallback to rule-based
+            return self.rule_based_predict(request_data)
+        
+        try:
+            # Get Random Forest prediction
+            rf_result = ml_classifier.predict(request_data)
+            
+            # Check if prediction succeeded
+            if rf_result.get('error'):
+                print(f"[WARNING] ML prediction error: {rf_result['error']}")
+                return self.rule_based_predict(request_data)
+            
+            # Get Anomaly Detection prediction (if available)
+            if anomaly_detector and anomaly_loaded:
+                try:
+                    anomaly_result = anomaly_detector.predict_anomaly(request_data)
+                    
+                    # Combine both predictions
+                    rf_score = rf_result['attack_probability']
+                    anomaly_score = abs(anomaly_result.get('anomaly_score', 0.0))
+                    
+                    # Use maximum threat score
+                    threat_score = max(rf_score, min(anomaly_score, 1.0))
+                    
+                    # Determine attack type
+                    if rf_result['is_attack']:
+                        attack_type = rf_result['prediction']
+                    elif anomaly_result.get('is_anomaly'):
+                        attack_type = f"Anomaly ({anomaly_result['severity']})"
+                    else:
+                        attack_type = "Benign"
+                    
+                    return float(threat_score), attack_type
+                    
+                except Exception as e:
+                    print(f"[WARNING] Anomaly detection failed: {e}")
+                    # Continue with Random Forest only
+            
+            # Only Random Forest available
+            threat_score = rf_result['attack_probability']
+            attack_type = rf_result['prediction'] if rf_result['is_attack'] else 'Benign'
+            
+            return float(threat_score), attack_type
+            
+        except Exception as e:
+            print(f"[ERROR] ML prediction failed: {e}")
+            traceback.print_exc()
+            # Fallback to rule-based
+            return self.rule_based_predict(request_data)
     
     def analyze_request(self, request_data):
         """
@@ -146,23 +267,16 @@ class WAFInterceptor:
             # Step 1: Extract 20 features
             features = self.feature_extractor.extract_features(request_data)
             
-            # Step 2: Get ML prediction
-            ml_result = self.ml_model.predict(request_data)
-            
-            # Convert ML result to expected format
-            if ml_result.get('error'):
-                # Model not available, fallback to rule-based
-                threat_score, attack_type = self.rule_based_predict(request_data)
-            else:
-                threat_score = ml_result['attack_probability']
-                attack_type = ml_result['prediction'] if ml_result['is_attack'] else 'Benign'
+            # Step 2: Get prediction (ML or rule-based)
+            threat_score, attack_type = self.ml_predict(request_data)
             
             # Step 3: Prepare analysis result
             analysis_result = {
                 'features': features,
                 'threat_score': threat_score,
                 'attack_type': attack_type,
-                'is_malicious': threat_score > self.threshold
+                'is_malicious': threat_score > self.threshold,
+                'ml_powered': self.ml_available
             }
             
             return analysis_result
@@ -189,9 +303,18 @@ class WAFInterceptor:
             is_blocked (bool): Whether request was blocked
             response_time (float): Processing time in seconds
         """
+        if not self.db_available:
+            # Fallback: console logging
+            print(f"\n[CONSOLE LOG] Request at {request_data['timestamp']}")
+            print(f"  IP: {request_data['ip_address']}")
+            print(f"  Method: {request_data['method']} {request_data['path']}")
+            print(f"  Threat Score: {analysis_result['threat_score']:.2f}")
+            print(f"  Attack Type: {analysis_result['attack_type']}")
+            print(f"  Status: {'BLOCKED' if is_blocked else 'ALLOWED'}")
+            return None
+        
         try:
             # Parse query string into parameters dict
-            from urllib.parse import parse_qs
             query_params = {}
             if request_data.get('query_string'):
                 try:
@@ -215,7 +338,6 @@ class WAFInterceptor:
             
             # Log to database
             log_id = db_ops.log_request(log_data)
-            
             return log_id
             
         except Exception as e:
@@ -269,7 +391,7 @@ class WAFInterceptor:
                     self.allowed_count += 1
                     return None
             
-            # Step 3: Analyze request with ML model
+            # Step 3: Analyze request with ML models
             analysis_result = self.analyze_request(request_data)
             
             # Step 4: Make decision
@@ -282,7 +404,8 @@ class WAFInterceptor:
             # Step 6: Block or allow
             if is_blocked:
                 self.blocked_count += 1
-                print(f"\n[BLOCKED] {analysis_result['attack_type']} detected")
+                ml_status = "🤖 AI-Powered" if self.ml_available else "📏 Rule-Based"
+                print(f"\n[BLOCKED] {ml_status} {analysis_result['attack_type']} detected")
                 print(f"  URL: {request_data['url']}")
                 print(f"  Threat Score: {analysis_result['threat_score']:.2f}")
                 
@@ -291,7 +414,8 @@ class WAFInterceptor:
                     'message': f'Potential {analysis_result["attack_type"]} detected',
                     'blocked': True,
                     'threat_score': analysis_result['threat_score'],
-                    'attack_type': analysis_result['attack_type']
+                    'attack_type': analysis_result['attack_type'],
+                    'ml_powered': self.ml_available
                 }), 403
             else:
                 self.allowed_count += 1
@@ -312,19 +436,28 @@ class WAFInterceptor:
             dict: Statistics including blocked and allowed counts
         """
         total = self.blocked_count + self.allowed_count
-        return {
+        stats = {
             'total_requests': total,
             'blocked_requests': self.blocked_count,
             'allowed_requests': self.allowed_count,
-            'block_rate': (self.blocked_count / total * 100) if total > 0 else 0
+            'block_rate': (self.blocked_count / total * 100) if total > 0 else 0,
+            'ml_powered': self.ml_available,
+            'db_connected': self.db_available
         }
+        
+        # Get database statistics if available
+        if self.db_available:
+            try:
+                db_stats = db_ops.get_statistics()
+                stats.update(db_stats)
+            except:
+                pass
+        
+        return stats
 
 
 # Global WAF instance
 waf = WAFInterceptor(threshold=0.7)
-
-# Global database operations instance
-db_ops = DatabaseOperations()
 
 
 def waf_middleware():
