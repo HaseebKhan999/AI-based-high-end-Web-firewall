@@ -16,6 +16,7 @@ from functools import wraps
 import time
 from datetime import datetime
 import traceback
+from urllib.parse import parse_qs
 
 # Import feature extraction
 import sys
@@ -24,70 +25,12 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from utils.feature_extraction import FeatureExtractor
 
-# Mock functions (Replace these when Person 2 and 3 are ready)
-def mock_ml_predict(features):
-    """
-    MOCK FUNCTION - Replace with Person 3's ML model
-    
-    Expected from Person 3:
-    from ml.predict import MLPredictor
-    predictor = MLPredictor()
-    threat_score, attack_type = predictor.predict(features)
-    """
-    # Simple rule-based mock for testing
-    if features[6] > 2:  # sql_keyword_count > 2
-        return 0.95, "SQL Injection"
-    elif features[8] > 0:  # xss_keyword_count > 0
-        return 0.90, "XSS"
-    elif features[10] == 1:  # has_path_traversal
-        return 0.85, "Path Traversal"
-    elif features[11] == 1:  # has_command_injection
-        return 0.88, "Command Injection"
-    else:
-        return 0.15, "Benign"
+# Import database operations
+from database.db_operations import DatabaseOperations
 
+# Import ML model
+from models.ml_model import MLModel
 
-def mock_db_log(log_data):
-    """
-    MOCK FUNCTION - Replace with Person 2's database logging
-    
-    Expected from Person 2:
-    from database.db_operations import log_traffic
-    log_id = log_traffic(log_data)
-    """
-    print(f"\n[MOCK DB LOG] Request logged at {log_data['timestamp']}")
-    print(f"  IP: {log_data['ip_address']}")
-    print(f"  Method: {log_data['method']} {log_data['url']}")
-    print(f"  Threat Score: {log_data['threat_score']}")
-    print(f"  Attack Type: {log_data['attack_type']}")
-    print(f"  Status: {'BLOCKED' if log_data['is_blocked'] else 'ALLOWED'}")
-    return 1  # Mock log ID
-
-
-def mock_check_whitelist(ip_address):
-    """
-    MOCK FUNCTION - Replace with Person 2's whitelist check
-    
-    Expected from Person 2:
-    from database.db_operations import check_whitelist
-    is_whitelisted = check_whitelist(ip_address)
-    """
-    # Mock: localhost is always whitelisted
-    whitelist = ['127.0.0.1', 'localhost']
-    return ip_address in whitelist
-
-
-def mock_check_blacklist(ip_address):
-    """
-    MOCK FUNCTION - Replace with Person 2's blacklist check
-    
-    Expected from Person 2:
-    from database.db_operations import check_blacklist
-    is_blacklisted = check_blacklist(ip_address)
-    """
-    # Mock: Some known malicious IPs
-    blacklist = ['10.0.0.666', '192.168.1.666']
-    return ip_address in blacklist
 
 
 class WAFInterceptor:
@@ -105,9 +48,10 @@ class WAFInterceptor:
         """
         self.threshold = threshold
         self.feature_extractor = FeatureExtractor()
+        self.ml_model = MLModel()  # Initialize ML model
         self.blocked_count = 0
         self.allowed_count = 0
-        
+
     def extract_request_data(self, req):
         """
         Extract all relevant data from Flask request object
@@ -151,14 +95,42 @@ class WAFInterceptor:
             tuple: (should_block, reason)
         """
         # Check whitelist first (highest priority)
-        if mock_check_whitelist(ip_address):
+        if db_ops.check_whitelist(ip_address):
             return False, "Whitelisted IP"
         
         # Check blacklist
-        if mock_check_blacklist(ip_address):
+        if db_ops.check_blacklist(ip_address):
             return True, "Blacklisted IP"
         
         return None, None
+    
+    def rule_based_predict(self, request_data):
+        """
+        FALLBACK: Rule-based detection when ML models are not available
+        
+        Args:
+            request_data (dict): Request data dictionary
+            
+        Returns:
+            tuple: (threat_score, attack_type)
+        """
+        try:
+            # Extract features for rule-based analysis
+            features = self.feature_extractor.extract_features(request_data)
+            
+            # Simple rule-based detection
+            if features[6] > 2:  # sql_keyword_count > 2
+                return 0.95, "SQL Injection"
+            elif features[8] > 0:  # xss_keyword_count > 0
+                return 0.90, "XSS"
+            elif features[10] == 1:  # has_path_traversal
+                return 0.85, "Path Traversal"
+            elif features[11] == 1:  # has_command_injection
+                return 0.88, "Command Injection"
+            else:
+                return 0.15, "Benign"
+        except:
+            return 0.15, "Benign"
     
     def analyze_request(self, request_data):
         """
@@ -175,8 +147,15 @@ class WAFInterceptor:
             features = self.feature_extractor.extract_features(request_data)
             
             # Step 2: Get ML prediction
-            # TODO: Replace with Person 3's actual ML model
-            threat_score, attack_type = mock_ml_predict(features)
+            ml_result = self.ml_model.predict(request_data)
+            
+            # Convert ML result to expected format
+            if ml_result.get('error'):
+                # Model not available, fallback to rule-based
+                threat_score, attack_type = self.rule_based_predict(request_data)
+            else:
+                threat_score = ml_result['attack_probability']
+                attack_type = ml_result['prediction'] if ml_result['is_attack'] else 'Benign'
             
             # Step 3: Prepare analysis result
             analysis_result = {
@@ -211,23 +190,31 @@ class WAFInterceptor:
             response_time (float): Processing time in seconds
         """
         try:
+            # Parse query string into parameters dict
+            from urllib.parse import parse_qs
+            query_params = {}
+            if request_data.get('query_string'):
+                try:
+                    query_params = parse_qs(request_data['query_string'], keep_blank_values=True)
+                except:
+                    query_params = {}
+            
             log_data = {
-                'timestamp': request_data['timestamp'],
                 'ip_address': request_data['ip_address'],
                 'method': request_data['method'],
                 'url': request_data['url'],
-                'path': request_data['path'],
-                'query_string': request_data['query_string'],
-                'user_agent': request_data['user_agent'],
+                'headers': request_data.get('headers', {}),
+                'body': request_data.get('body', ''),
+                'query_params': query_params,
                 'threat_score': analysis_result['threat_score'],
-                'attack_type': analysis_result['attack_type'],
                 'is_blocked': is_blocked,
+                'attack_type': analysis_result['attack_type'],
                 'features': analysis_result['features'],
                 'response_time': response_time
             }
             
-            # TODO: Replace with Person 2's actual database logging
-            log_id = mock_db_log(log_data)
+            # Log to database
+            log_id = db_ops.log_request(log_data)
             
             return log_id
             
@@ -335,6 +322,9 @@ class WAFInterceptor:
 
 # Global WAF instance
 waf = WAFInterceptor(threshold=0.7)
+
+# Global database operations instance
+db_ops = DatabaseOperations()
 
 
 def waf_middleware():
