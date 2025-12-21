@@ -14,8 +14,15 @@ import sys
 import os
 import numpy as np
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 import json
+
+# Pakistan timezone (GMT+5)
+PKT = timezone(timedelta(hours=5))
+
+def get_current_time():
+    """Get current time in Pakistan timezone (GMT+5)"""
+    return datetime.now(PKT)
 
 # Add parent directory to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -86,9 +93,9 @@ class ModelTrainer:
         print(f"\n🏋️ Training on {len(X_train)} samples...")
         self.model = RandomForestClassifier(**default_params)
         
-        start_time = datetime.now()
+        start_time = get_current_time()
         self.model.fit(X_train, y_train)
-        training_time = (datetime.now() - start_time).total_seconds()
+        training_time = (get_current_time() - start_time).total_seconds()
         
         print(f"✅ Training completed in {training_time:.2f} seconds!")
         
@@ -211,7 +218,7 @@ class ModelTrainer:
         
         # Save metadata
         metadata_path = model_path.replace('.pkl', '_metadata.json')
-        self.training_metadata['trained_at'] = datetime.now().isoformat()
+        self.training_metadata['trained_at'] = get_current_time().isoformat()
         self.training_metadata['model_path'] = model_path
         self.training_metadata['feature_names'] = self.feature_names
         
@@ -243,7 +250,7 @@ class ModelTrainer:
             accuracy = metrics.get('accuracy', 0.0)
             
             # Extract model version from metadata or use timestamp
-            model_version = self.training_metadata.get('trained_at', datetime.now().isoformat())
+            model_version = self.training_metadata.get('trained_at', get_current_time().isoformat())
             
             with get_db_cursor() as cur:
                 # Check if model already exists
@@ -313,7 +320,7 @@ def main():
     print("\n" + "="*70)
     print("🚀 AI-WAF MODEL TRAINING PIPELINE")
     print("="*70)
-    print(f"Started at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"Started at: {get_current_time().strftime('%Y-%m-%d %H:%M:%S')}")
     
     # Get script directory for relative paths
     script_dir = os.path.dirname(os.path.abspath(__file__))

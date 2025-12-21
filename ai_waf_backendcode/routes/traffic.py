@@ -11,9 +11,16 @@ This blueprint provides:
 """
 
 from flask import Blueprint, request, jsonify
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 import sys
 import os
+
+# Pakistan timezone (GMT+5)
+PKT = timezone(timedelta(hours=5))
+
+def get_current_time():
+    """Get current time in Pakistan timezone (GMT+5)"""
+    return datetime.now(PKT)
 
 # Add project root to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -44,7 +51,7 @@ def get_statistics():
     
     return jsonify({
         'success': True,
-        'timestamp': datetime.now().isoformat(),
+        'timestamp': get_current_time().isoformat(),
         'waf_statistics': waf_stats,
         'detector_statistics': detector_stats,
         'threshold': waf.threshold,
@@ -99,7 +106,7 @@ def test_waf():
             'body': test_data.get('body', ''),
             'ip_address': test_data.get('ip_address', '0.0.0.0'),
             'headers': test_data.get('headers', {}),
-            'timestamp': datetime.now().isoformat()
+            'timestamp': get_current_time().isoformat()
         }
         
         # Step 1: Extract features
@@ -140,7 +147,7 @@ def test_waf():
                     'names': feature_extractor.get_feature_names()
                 }
             },
-            'timestamp': datetime.now().isoformat()
+            'timestamp': get_current_time().isoformat()
         }
         
         return jsonify(response_data), 200
@@ -354,7 +361,7 @@ def analyze_request():
             'query_string': data.get('query_string', ''),
             'method': data.get('method', 'GET'),
             'body': data.get('body', ''),
-            'timestamp': datetime.now().isoformat()
+            'timestamp': get_current_time().isoformat()
         }
         
         # Extract features
@@ -373,7 +380,7 @@ def analyze_request():
                 'threat_level': threat_detector.get_threat_level(detection['threat_score']),
                 'recommendation': 'BLOCK' if detection['threat_score'] > waf.threshold else 'ALLOW'
             },
-            'timestamp': datetime.now().isoformat()
+            'timestamp': get_current_time().isoformat()
         }), 200
         
     except Exception as e:
