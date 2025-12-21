@@ -28,6 +28,14 @@ from sklearn.metrics import (
 )
 import joblib
 
+# Import database operations for model registration
+try:
+    from database.db_config import get_db_cursor
+    DB_AVAILABLE = True
+except Exception as e:
+    print(f"⚠️  Database not available: {e}")
+    DB_AVAILABLE = False
+
 
 class ModelTrainer:
     """Handles Random Forest model training and evaluation"""
@@ -179,13 +187,17 @@ class ModelTrainer:
         
         return metrics
     
-    def save_model(self, model_path='data/trained_models/random_forest_model.pkl'):
+    def save_model(self, model_path=None):
         """
         Save trained model to disk
         
         Args:
             model_path: Path to save model
         """
+        if model_path is None:
+            script_dir = os.path.dirname(os.path.dirname(__file__))
+            model_path = os.path.join(script_dir, 'data', 'trained_models', 'random_forest_model.pkl')
+        
         print("\n" + "="*70)
         print("💾 SAVING MODEL")
         print("="*70)
@@ -210,8 +222,73 @@ class ModelTrainer:
         # Calculate model size
         model_size = os.path.getsize(model_path) / (1024 * 1024)  # MB
         print(f"📦 Model size: {model_size:.2f} MB")
+        
+        # Register model in database
+        self._register_model_in_db(model_path, model_size)
     
-    def load_model(self, model_path='data/trained_models/random_forest_model.pkl'):
+    def _register_model_in_db(self, model_path, model_size):
+        """
+        Register trained model in database
+        
+        Args:
+            model_path: Path to saved model
+            model_size: Model file size in MB
+        """
+        if not DB_AVAILABLE:
+            print("⚠️  Database not available - skipping model registration")
+            return
+        
+        try:
+            metrics = self.training_metadata.get('evaluation_metrics', {})
+            accuracy = metrics.get('accuracy', 0.0)
+            
+            # Extract model version from metadata or use timestamp
+            model_version = self.training_metadata.get('trained_at', datetime.now().isoformat())
+            
+            with get_db_cursor() as cur:
+                # Check if model already exists
+                cur.execute("""
+                    SELECT id FROM ml_models 
+                    WHERE model_name = ? AND model_version = ?
+                """, ('RandomForestClassifier', model_version))
+                
+                existing = cur.fetchone()
+                
+                if existing:
+                    # Update existing model
+                    cur.execute("""
+                        UPDATE ml_models
+                        SET accuracy = ?, file_path = ?, description = ?
+                        WHERE model_name = ? AND model_version = ?
+                    """, (
+                        accuracy,
+                        model_path,
+                        f"Random Forest WAF model, {model_size:.2f} MB, F1: {metrics.get('f1_score', 0.0):.4f}",
+                        'RandomForestClassifier',
+                        model_version
+                    ))
+                    print(f"✅ Model updated in database (ID: {existing['id']})")
+                else:
+                    # Insert new model
+                    cur.execute("""
+                        INSERT INTO ml_models 
+                        (model_name, model_version, accuracy, file_path, description)
+                        VALUES (?, ?, ?, ?, ?)
+                    """, (
+                        'RandomForestClassifier',
+                        model_version,
+                        accuracy,
+                        model_path,
+                        f"Random Forest WAF model, {model_size:.2f} MB, F1: {metrics.get('f1_score', 0.0):.4f}"
+                    ))
+                    print(f"✅ Model registered in database")
+                    
+        except Exception as e:
+            print(f"⚠️  Failed to register model in database: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    def load_model(self, model_path=None):
         """
         Load trained model from disk
         
@@ -221,6 +298,10 @@ class ModelTrainer:
         Returns:
             Loaded model
         """
+        if model_path is None:
+            script_dir = os.path.dirname(os.path.dirname(__file__))
+            model_path = os.path.join(script_dir, 'data', 'trained_models', 'random_forest_model.pkl')
+        
         self.model = joblib.load(model_path)
         print(f"✅ Model loaded from: {model_path}")
         return self.model
@@ -234,13 +315,17 @@ def main():
     print("="*70)
     print(f"Started at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     
+    # Get script directory for relative paths
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    data_filepath = os.path.join(script_dir, '..', 'data', 'datasets', 'csic_database.csv')
+    
     # Initialize trainer
     trainer = ModelTrainer()
     
     # Step 1: Prepare data
     print("\n[STEP 1] Preparing training data...")
     X_train, X_test, y_train, y_test = trainer.preprocessor.prepare_training_data(
-        filepath='data/datasets/csic_database.csv',
+        filepath=data_filepath,
         test_size=0.2
     )
     

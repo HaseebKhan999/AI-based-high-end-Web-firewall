@@ -148,7 +148,7 @@ class DataPreprocessor:
                 features = self.feature_extractor.extract_features(request_data)
                 
                 # Get label (0 = Normal, 1 = Anomalous)
-                label = 0 if str(row.get('classification', 'Normal')).strip() == 'Normal' else 1
+                label = int(row.get('classification', 0))
                 
                 features_list.append(features)
                 labels_list.append(label)
@@ -225,17 +225,25 @@ class DataPreprocessor:
         
         return X_train_scaled
     
-    def save_scaler(self, filepath='data/trained_models/scaler.pkl'):
+    def save_scaler(self, filepath=None):
         """
         Save the fitted scaler for use during prediction
         Person 1 will load this scaler for real-time predictions
         """
+        if filepath is None:
+            script_dir = os.path.dirname(os.path.dirname(__file__))
+            filepath = os.path.join(script_dir, 'data', 'trained_models', 'scaler.pkl')
+        
         os.makedirs(os.path.dirname(filepath), exist_ok=True)
         joblib.dump(self.scaler, filepath)
         print(f"✅ Scaler saved to {filepath}")
     
-    def load_scaler(self, filepath='data/trained_models/scaler.pkl'):
+    def load_scaler(self, filepath=None):
         """Load a saved scaler"""
+        if filepath is None:
+            script_dir = os.path.dirname(os.path.dirname(__file__))
+            filepath = os.path.join(script_dir, 'data', 'trained_models', 'scaler.pkl')
+        
         self.scaler = joblib.load(filepath)
         print(f"✅ Scaler loaded from {filepath}")
         return self.scaler

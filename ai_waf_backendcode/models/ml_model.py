@@ -7,12 +7,11 @@ This module provides the interface for Person 1 to use the trained ML models
 for real-time threat detection.
 """
 
+import os
+import sys
 import joblib
 import numpy as np
 import json
-import os
-import sys
-from datetime import datetime
 
 # Add parent directory to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -36,9 +35,9 @@ class MLModel:
         """
         self.model = None
         self.scaler = None
-        self.feature_extractor = FeatureExtractor()
         self.model_path = model_path
         self.scaler_path = scaler_path
+        self.feature_extractor = FeatureExtractor()
         self.metadata = None
         self.is_loaded = False
         
@@ -64,47 +63,41 @@ class MLModel:
             bool: True if successful, False otherwise
         """
         try:
-            print(f"🔄 Loading ML model from {self.model_path}...")
+            # Convert relative paths to absolute paths
+            if not os.path.isabs(self.model_path):
+                self.model_path = os.path.join(
+                    os.path.dirname(os.path.abspath(__file__)),
+                    '..', self.model_path
+                )
+            if not os.path.isabs(self.scaler_path):
+                self.scaler_path = os.path.join(
+                    os.path.dirname(os.path.abspath(__file__)),
+                    '..', self.scaler_path
+                )
             
-            # Check if files exist
-            if not os.path.exists(self.model_path):
-                print(f"❌ Model file not found: {self.model_path}")
-                return False
-            
-            if not os.path.exists(self.scaler_path):
-                print(f"❌ Scaler file not found: {self.scaler_path}")
-                return False
+            # Normalize paths
+            self.model_path = os.path.normpath(self.model_path)
+            self.scaler_path = os.path.normpath(self.scaler_path)
             
             # Load model
             self.model = joblib.load(self.model_path)
-            print(f"✅ Random Forest model loaded successfully")
-            
             # Load scaler
             self.scaler = joblib.load(self.scaler_path)
-            print(f"✅ Feature scaler loaded successfully")
-            
-            # Load metadata
-            metadata_path = self.model_path.replace('.pkl', '_metadata.json')
+            # Load metadata if exists
+            metadata_path = os.path.join(
+                os.path.dirname(self.model_path),
+                'random_forest_model_metadata.json'
+            )
             if os.path.exists(metadata_path):
                 with open(metadata_path, 'r') as f:
                     self.metadata = json.load(f)
-                print(f"✅ Model metadata loaded")
-                
-                # Print model info
-                if 'evaluation_metrics' in self.metadata:
-                    metrics = self.metadata['evaluation_metrics']
-                    print(f"\n📊 Model Performance:")
-                    print(f"   Accuracy: {metrics.get('accuracy', 0)*100:.2f}%")
-                    print(f"   F1-Score: {metrics.get('f1_score', 0)*100:.2f}%")
-                    print(f"   False Positive Rate: {metrics.get('false_positive_rate', 0)*100:.2f}%")
-            
             self.is_loaded = True
+            print(f"✅ Model loaded from {self.model_path}")
+            print(f"✅ Scaler loaded from {self.scaler_path}")
             return True
-            
         except Exception as e:
-            print(f"❌ Error loading model: {e}")
-            import traceback
-            traceback.print_exc()
+            print(f"❌ Error loading model or scaler: {e}")
+            self.is_loaded = False
             return False
     
     def extract_and_scale_features(self, request_data):
@@ -130,89 +123,59 @@ class MLModel:
     
     def predict(self, request_data):
         """
-        Predict if request is malicious or benign
+        Predict if a request is normal or attack
         
         Args:
-            request_data: Dictionary containing request information
+            request_data: dict with request info
             
         Returns:
-            dict: Prediction results with threat level and confidence
+            dict: prediction, confidence, threat_level, attack_probability, is_attack
         """
         if not self.is_loaded:
-            success = self.load_model()
-            if not success:
-                return {
-                    'error': 'Model not loaded',
-                    'is_attack': False,
-                    'confidence': 0.0,
-                    'threat_level': 'unknown'
-                }
+            raise RuntimeError("Model not loaded. Call load_model() first.")
         
         try:
-            # Extract and scale features
             features_scaled = self.extract_and_scale_features(request_data)
+            pred = self.model.predict(features_scaled)[0]
+            proba = self.model.predict_proba(features_scaled)[0][1] if self.model.n_classes_ > 1 else 1.0
+            threat_level = self.calculate_threat_level(proba)
+            prediction_label = self.attack_types.get(pred, "Unknown")
             
-            # Make prediction
-            prediction = self.model.predict(features_scaled)[0]
-            probabilities = self.model.predict_proba(features_scaled)[0]
-            
-            # Get confidence (probability of predicted class)
-            confidence = float(probabilities[prediction])
-            attack_probability = float(probabilities[1])  # Probability of attack
-            
-            # Determine threat level based on attack probability
-            threat_level = self.calculate_threat_level(attack_probability)
-            
-            # Prepare result
-            result = {
-                'is_attack': bool(prediction == 1),
-                'prediction': self.attack_types[prediction],
-                'confidence': confidence,
-                'attack_probability': attack_probability,
-                'threat_level': threat_level,
-                'probabilities': {
-                    'normal': float(probabilities[0]),
-                    'attack': float(probabilities[1])
-                },
-                'timestamp': datetime.now().isoformat()
-            }
-            
-            return result
-            
-        except Exception as e:
-            print(f"❌ Prediction error: {e}")
-            import traceback
-            traceback.print_exc()
             return {
-                'error': str(e),
-                'is_attack': False,
-                'confidence': 0.0,
-                'threat_level': 'unknown'
+                "prediction": prediction_label,
+                "confidence": proba,
+                "threat_level": threat_level,
+                "attack_probability": proba,
+                "is_attack": prediction_label == "Attack"
+            }
+        except Exception as e:
+            return {
+                "prediction": "Unknown",
+                "confidence": 0.0,
+                "threat_level": "low",
+                "attack_probability": 0.0,
+                "is_attack": False,
+                "error": str(e)
             }
     
     def predict_batch(self, requests_data):
         """
-        Predict multiple requests at once (for efficiency)
+        Predict on a batch of requests
         
         Args:
-            requests_data: List of request dictionaries
+            requests_data: list of dicts
             
         Returns:
-            list: List of prediction results
+            list of dicts with predictions
         """
-        if not self.is_loaded:
-            self.load_model()
-        
         results = []
-        for request_data in requests_data:
-            result = self.predict(request_data)
-            results.append(result)
-        
+        for req in requests_data:
+            results.append(self.predict(req))
         return results
     
     def calculate_threat_level(self, attack_probability):
         """
-        Calculate threat severity level based on attack probability
+        Map attack probability to threat level
         
         Args:
             attack_probability: Probability that request is an attack (0-1)
@@ -220,18 +183,14 @@ class MLModel:
         Returns:
             str: Threat level (low, medium, high, critical)
         """
-        if attack_probability < self.severity_thresholds['low']:
-            return 'low'
-        elif attack_probability < self.severity_thresholds['medium']:
-            return 'medium'
-        elif attack_probability < self.severity_thresholds['high']:
-            return 'high'
-        else:
-            return 'critical'
+        for level, threshold in self.severity_thresholds.items():
+            if attack_probability <= threshold:
+                return level
+        return "critical"
     
     def get_feature_importance(self, top_n=10):
         """
-        Get top N most important features from the model
+        Return top_n features by importance
         
         Args:
             top_n: Number of top features to return
@@ -239,44 +198,21 @@ class MLModel:
         Returns:
             list: Feature names and importance scores
         """
-        if not self.is_loaded:
+        if not self.is_loaded or not hasattr(self.model, "feature_importances_"):
             return []
-        
-        feature_names = self.feature_extractor.get_feature_names()
-        importance_scores = self.model.feature_importances_
-        
-        # Create list of (feature, importance) tuples
-        features_with_importance = list(zip(feature_names, importance_scores))
-        
-        # Sort by importance (descending)
-        features_with_importance.sort(key=lambda x: x[1], reverse=True)
-        
-        # Return top N
-        return features_with_importance[:top_n]
+        importances = self.model.feature_importances_
+        feature_names = getattr(self.feature_extractor, "feature_names", [f"f{i}" for i in range(len(importances))])
+        sorted_idx = np.argsort(importances)[::-1][:top_n]
+        return [(feature_names[i], importances[i]) for i in sorted_idx]
     
     def get_model_info(self):
         """
-        Get information about the loaded model
+        Return model metadata
         
         Returns:
             dict: Model information
         """
-        if not self.is_loaded:
-            return {'error': 'Model not loaded'}
-        
-        info = {
-            'model_type': 'Random Forest Classifier',
-            'model_loaded': self.is_loaded,
-            'model_path': self.model_path,
-            'n_features': len(self.feature_extractor.get_feature_names()),
-            'feature_names': self.feature_extractor.get_feature_names()
-        }
-        
-        # Add metadata if available
-        if self.metadata:
-            info['metadata'] = self.metadata
-        
-        return info
+        return self.metadata if self.metadata else {}
 
 
 # Standalone testing

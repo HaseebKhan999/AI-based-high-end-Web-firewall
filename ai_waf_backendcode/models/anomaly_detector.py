@@ -22,6 +22,14 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils.feature_extraction import FeatureExtractor
 from utils.preprocessing import DataPreprocessor
 
+# Database import
+try:
+    from database.db_config import get_db_cursor
+    DB_AVAILABLE = True
+except ImportError:
+    print("⚠️  Database module not available")
+    DB_AVAILABLE = False
+
 
 class AnomalyDetector:
     """
@@ -197,10 +205,90 @@ class AnomalyDetector:
         
         model_size = os.path.getsize(self.model_path) / (1024 * 1024)
         print(f"📦 Model size: {model_size:.2f} MB")
+        
+        # Register model in database
+        self._register_model_in_db(model_size)
+    
+    def _register_model_in_db(self, model_size):
+        """
+        Register trained Isolation Forest model in database
+        
+        Args:
+            model_size: Model file size in MB
+        """
+        if not DB_AVAILABLE:
+            print("⚠️  Database not available - skipping model registration")
+            return
+        
+        try:
+            metrics = self.metadata.get('evaluation_metrics', {})
+            accuracy = metrics.get('accuracy', 0.0)
+            
+            # Extract model version from metadata or use timestamp
+            model_version = self.metadata.get('trained_at', datetime.now().isoformat())
+            
+            with get_db_cursor() as cur:
+                # Check if model already exists
+                cur.execute("""
+                    SELECT id FROM ml_models 
+                    WHERE model_name = ? AND model_version = ?
+                """, ('IsolationForest', model_version))
+                
+                existing = cur.fetchone()
+                
+                if existing:
+                    # Update existing model
+                    cur.execute("""
+                        UPDATE ml_models
+                        SET accuracy = ?, file_path = ?, description = ?
+                        WHERE model_name = ? AND model_version = ?
+                    """, (
+                        accuracy,
+                        self.model_path,
+                        f"Isolation Forest anomaly detector, {model_size:.2f} MB, F1: {metrics.get('f1_score', 0.0):.4f}",
+                        'IsolationForest',
+                        model_version
+                    ))
+                    print(f"✅ Model updated in database (ID: {existing['id']})")
+                else:
+                    # Insert new model
+                    cur.execute("""
+                        INSERT INTO ml_models 
+                        (model_name, model_version, accuracy, file_path, description)
+                        VALUES (?, ?, ?, ?, ?)
+                    """, (
+                        'IsolationForest',
+                        model_version,
+                        accuracy,
+                        self.model_path,
+                        f"Isolation Forest anomaly detector, {model_size:.2f} MB, F1: {metrics.get('f1_score', 0.0):.4f}"
+                    ))
+                    print(f"✅ Model registered in database")
+                    
+        except Exception as e:
+            print(f"⚠️  Failed to register model in database: {e}")
+            import traceback
+            traceback.print_exc()
     
     def load_model(self):
         """Load trained Isolation Forest model"""
         try:
+            # Convert relative paths to absolute paths
+            if not os.path.isabs(self.model_path):
+                self.model_path = os.path.join(
+                    os.path.dirname(os.path.abspath(__file__)),
+                    '..', self.model_path
+                )
+            if not os.path.isabs(self.scaler_path):
+                self.scaler_path = os.path.join(
+                    os.path.dirname(os.path.abspath(__file__)),
+                    '..', self.scaler_path
+                )
+            
+            # Normalize paths
+            self.model_path = os.path.normpath(self.model_path)
+            self.scaler_path = os.path.normpath(self.scaler_path)
+            
             print(f"🔄 Loading Isolation Forest from {self.model_path}...")
             
             if not os.path.exists(self.model_path):

@@ -1,0 +1,136 @@
+{
+    "training_time": 2.080108,
+    "n_samples": 48852,
+    "model_params": {
+        "n_estimators": 100,
+        "max_depth": 20,
+        "min_samples_split": 5,
+        "min_samples_leaf": 2,
+        "max_features": "sqrt",
+        "random_state": 42,
+        "n_jobs": -1,
+        "class_weight": "balanced",
+        "verbose": 1
+    },
+    "evaluation_metrics": {
+        "accuracy": 0.9345779087857201,
+        "precision": 0.8863219655298863,
+        "recall": 0.964292838619589,
+        "f1_score": 0.9236648514378523,
+        "roc_auc": 0.9905498481725292,
+        "false_positive_rate": 0.08611111111111111,
+        "false_negative_rate": 0.03570716138041093,
+        "confusion_matrix": {
+            "true_negative": 6580,
+            "false_positive": 620,
+            "false_negative": 179,
+            "true_positive": 4834
+        },
+        "feature_importance": [
+            {
+                "feature": "lower_case_ratio",
+                "importance": 0.18134378037418544
+            },
+            {
+                "feature": "upper_case_ratio",
+                "importance": 0.14518635253988413
+            },
+            {
+                "feature": "hex_char_count",
+                "importance": 0.12085548940606236
+            },
+            {
+                "feature": "entropy",
+                "importance": 0.10713716140311147
+            },
+            {
+                "feature": "digit_count",
+                "importance": 0.09513090456717258
+            },
+            {
+                "feature": "special_char_count",
+                "importance": 0.08355319963301343
+            },
+            {
+                "feature": "request_length",
+                "importance": 0.08348420816482952
+            },
+            {
+                "feature": "sql_keyword_count",
+                "importance": 0.04262159469317989
+            },
+            {
+                "feature": "num_dots",
+                "importance": 0.040672737731298016
+            },
+            {
+                "feature": "url_length",
+                "importance": 0.028989643074835068
+            },
+            {
+                "feature": "method_encoded",
+                "importance": 0.023096309126763328
+            },
+            {
+                "feature": "num_slashes",
+                "importance": 0.01648362218437575
+            },
+            {
+                "feature": "query_string_length",
+                "importance": 0.01348449306463295
+            },
+            {
+                "feature": "has_command_injection_chars",
+                "importance": 0.010534708976429089
+            },
+            {
+                "feature": "has_sql_keywords",
+                "importance": 0.0038473044398206575
+            },
+            {
+                "feature": "num_parameters",
+                "importance": 0.0033558243073721354
+            },
+            {
+                "feature": "has_xss_patterns",
+                "importance": 0.00011994282102469876
+            },
+            {
+                "feature": "xss_keyword_count",
+                "importance": 0.0001027234920093024
+            },
+            {
+                "feature": "has_path_traversal",
+                "importance": 0.0
+            },
+            {
+                "feature": "has_digits",
+                "importance": 0.0
+            }
+        ]
+    },
+    "trained_at": "2025-12-21T22:06:39.710657",
+    "model_path": "c:\\Users\\hp\\Desktop\\BS CS 14 a\\semester 3\\Information security\\Infosec_Project\\ai_waf_backendcode\\data\\trained_models\\random_forest_model.pkl",
+    "feature_names": [
+        "request_length",
+        "url_length",
+        "num_parameters",
+        "special_char_count",
+        "entropy",
+        "has_sql_keywords",
+        "sql_keyword_count",
+        "has_xss_patterns",
+        "xss_keyword_count",
+        "has_path_traversal",
+        "has_command_injection_chars",
+        "method_encoded",
+        "num_dots",
+        "num_slashes",
+        "has_digits",
+        "digit_count",
+        "upper_case_ratio",
+        "lower_case_ratio",
+        "hex_char_count",
+        "query_string_length"
+    ]
+}
