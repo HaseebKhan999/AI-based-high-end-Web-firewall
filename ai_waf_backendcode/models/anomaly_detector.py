@@ -394,6 +394,10 @@ def train_anomaly_detector():
     print("🚀 ANOMALY DETECTOR TRAINING PIPELINE")
     print("="*70)
     
+    # Get script directory for relative paths
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    data_filepath = os.path.join(script_dir, '..', 'data', 'datasets', 'csic_database.csv')
+    
     # Initialize
     detector = AnomalyDetector()
     preprocessor = DataPreprocessor()
@@ -401,7 +405,7 @@ def train_anomaly_detector():
     # Prepare data
     print("\n[STEP 1] Preparing data...")
     X_train, X_test, y_train, y_test = preprocessor.prepare_training_data(
-        filepath='data/datasets/csic_database.csv',
+        filepath=data_filepath,
         test_size=0.2
     )
     
