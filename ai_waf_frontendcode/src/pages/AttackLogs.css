@@ -1,0 +1,217 @@
+.attack-logs {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.attacks-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #1e293b;
+  padding: 1.5rem;
+  border-radius: 12px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.attacks-title-section {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.attacks-icon {
+  font-size: 2rem;
+  color: #ef4444;
+}
+
+.attacks-title-section h2 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #e2e8f0;
+  margin-bottom: 0.25rem;
+}
+
+.attacks-subtitle {
+  color: #94a3b8;
+  font-size: 0.875rem;
+}
+
+.refresh-btn {
+  padding: 0.75rem 1.5rem;
+  background: #2563eb;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: background 0.2s;
+}
+
+.refresh-btn:hover {
+  background: #1d4ed8;
+}
+
+.attacks-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+  gap: 1.5rem;
+}
+
+.attack-card {
+  background: #1e293b;
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  border-left: 4px solid #ef4444;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.attack-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+}
+
+.attack-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  gap: 1rem;
+}
+
+.attack-type-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+
+.threat-score-badge {
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 0.875rem;
+  white-space: nowrap;
+}
+
+.attack-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.attack-info-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem;
+  background: #0f172a;
+  border-radius: 6px;
+  border: 1px solid #334155;
+}
+
+.attack-info-label {
+  font-weight: 600;
+  color: #94a3b8;
+  font-size: 0.875rem;
+  min-width: 100px;
+}
+
+.attack-info-value {
+  color: #e2e8f0;
+  font-weight: 500;
+  flex: 1;
+}
+
+.ip-address {
+  font-family: monospace;
+}
+
+.url-text {
+  word-break: break-all;
+  font-size: 0.875rem;
+}
+
+.method-badge {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.method-get {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.method-post {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.method-put {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.method-delete {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.no-attacks {
+  text-align: center;
+  padding: 4rem 2rem;
+  background: #1e293b;
+  border-radius: 12px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.no-attacks-icon {
+  font-size: 4rem;
+  color: #10b981;
+  margin-bottom: 1rem;
+}
+
+.no-attacks h3 {
+  font-size: 1.5rem;
+  color: #e2e8f0;
+  margin-bottom: 0.5rem;
+}
+
+.no-attacks p {
+  color: #94a3b8;
+}
+
+.loading, .error {
+  text-align: center;
+  padding: 3rem;
+  font-size: 1.25rem;
+  color: #94a3b8;
+}
+
+.error {
+  color: #ef4444;
+}
+
+@media (max-width: 768px) {
+  .attacks-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+
+  .attacks-grid {
+    grid-template-columns: 1fr;
+  }
+}
+

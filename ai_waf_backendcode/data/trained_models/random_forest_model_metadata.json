@@ -1,5 +1,5 @@
 {
-    "training_time": 2.080108,
+    "training_time": 2.792643,
     "n_samples": 48852,
     "model_params": {
         "n_estimators": 100,
@@ -109,8 +109,8 @@
             }
         ]
     },
-    "trained_at": "2025-12-21T22:06:39.710657",
-    "model_path": "c:\\Users\\hp\\Desktop\\BS CS 14 a\\semester 3\\Information security\\Infosec_Project\\ai_waf_backendcode\\data\\trained_models\\random_forest_model.pkl",
+    "trained_at": "2025-12-22T01:01:25.328617",
+    "model_path": "c:\\Users\\msalm\\OneDrive\\Documents\\Infosec_Project\\ai_waf_backendcode\\data\\trained_models\\random_forest_model.pkl",
     "feature_names": [
         "request_length",
         "url_length",

@@ -1,5 +1,5 @@
 {
-    "training_time": 0.417434,
+    "training_time": 0.662614,
     "n_samples": 28800,
     "model_params": {
         "n_estimators": 100,
@@ -9,7 +9,7 @@
         "n_jobs": -1,
         "verbose": 1
     },
-    "trained_at": "2025-12-21T23:25:12.368633",
+    "trained_at": "2025-12-21T23:47:10.117661",
     "evaluation_metrics": {
         "accuracy": 0.6937689347416687,
         "precision": 0.7388367729831145,
