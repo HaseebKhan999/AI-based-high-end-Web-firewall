@@ -2,8 +2,16 @@ import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { 
   FiLayout, FiActivity, FiShield, FiAlertTriangle, 
-  FiCheckCircle, FiXCircle, FiSettings, FiCpu 
+  FiCheckCircle, FiXCircle, FiSettings, FiCpu,
+  FiMenu, FiX 
 } from 'react-icons/fi';
+import { 
+  MdDashboard, MdSecurity, MdTraffic, 
+  MdWarning, MdVerified, MdBlock 
+} from 'react-icons/md';
+import { 
+  RiShieldCheckLine, RiShieldCrossLine 
+} from 'react-icons/ri';
 import './Layout.css';
 
 const Layout = ({ children }) => {
@@ -11,13 +19,13 @@ const Layout = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const menuItems = [
-    { path: '/dashboard', icon: FiLayout, label: 'Dashboard' },
-    { path: '/traffic-logs', icon: FiActivity, label: 'Traffic Logs' },
-    { path: '/attack-logs', icon: FiShield, label: 'Attack Logs' },
-    { path: '/whitelist', icon: FiCheckCircle, label: 'Whitelist' },
-    { path: '/blacklist', icon: FiXCircle, label: 'Blacklist' },
-    { path: '/configuration', icon: FiSettings, label: 'Configuration' },
-    { path: '/ml-models', icon: FiCpu, label: 'ML Models' },
+    { path: '/dashboard', icon: MdDashboard, label: 'Dashboard', gradient: 'from-blue-500 to-cyan-500' },
+    { path: '/traffic-logs', icon: FiActivity, label: 'Traffic Logs', gradient: 'from-green-500 to-emerald-500' },
+    { path: '/attack-logs', icon: MdWarning, label: 'Attack Logs', gradient: 'from-red-500 to-orange-500' },
+    { path: '/whitelist', icon: RiShieldCheckLine, label: 'Whitelist', gradient: 'from-green-400 to-teal-400' },
+    { path: '/blacklist', icon: RiShieldCrossLine, label: 'Blacklist', gradient: 'from-red-400 to-pink-500' },
+    { path: '/configuration', icon: FiSettings, label: 'Configuration', gradient: 'from-purple-500 to-indigo-500' },
+    { path: '/ml-models', icon: FiCpu, label: 'ML Models', gradient: 'from-violet-500 to-purple-600' },
   ];
 
   return (
@@ -25,14 +33,22 @@ const Layout = ({ children }) => {
       <aside className={`sidebar ${sidebarOpen ? 'open' : 'closed'}`}>
         <div className="sidebar-header">
           <div className="logo">
-            <FiShield className="logo-icon" />
-            <span className="logo-text">AI-WAF</span>
+            <div className="logo-icon-wrapper">
+              <FiShield className="logo-icon" />
+              <div className="logo-icon-glow"></div>
+            </div>
+            <span className="logo-text">
+              <span className="logo-ai">AI</span>
+              <span className="logo-separator">-</span>
+              <span className="logo-waf">WAF</span>
+            </span>
           </div>
           <button 
             className="sidebar-toggle"
             onClick={() => setSidebarOpen(!sidebarOpen)}
+            title={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
           >
-            {sidebarOpen ? '←' : '→'}
+            {sidebarOpen ? <FiX /> : <FiMenu />}
           </button>
         </div>
         <nav className="sidebar-nav">
