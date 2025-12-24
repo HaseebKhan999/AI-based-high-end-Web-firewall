@@ -14,9 +14,16 @@ This module:
 import re
 import sys
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from collections import defaultdict
 import json
+
+# Pakistan timezone (GMT+5)
+PKT = timezone(timedelta(hours=5))
+
+def get_current_time():
+    """Get current time in Pakistan timezone (GMT+5)"""
+    return datetime.now(PKT)
 
 # Add parent directory to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -344,7 +351,7 @@ class ThreatDetector:
         Returns:
             tuple: (is_limited, request_count)
         """
-        now = datetime.now()
+        now = get_current_time()
         one_minute_ago = now - timedelta(minutes=1)
         
         # Get requests from this IP in last minute

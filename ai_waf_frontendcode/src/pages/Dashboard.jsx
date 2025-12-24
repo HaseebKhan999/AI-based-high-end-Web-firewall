@@ -3,8 +3,14 @@ import { adminAPI } from '../services/api';
 import { formatDateGMT5 } from '../utils/dateUtils';
 import { 
   FiActivity, FiShield, FiAlertTriangle, FiTrendingUp,
-  FiClock, FiGlobe, FiCheckCircle, FiXCircle
+  FiClock, FiGlobe, FiCheckCircle, FiXCircle, FiZap
 } from 'react-icons/fi';
+import { 
+  MdSecurity, MdBlock, MdAccessTime, MdWarning 
+} from 'react-icons/md';
+import { 
+  RiShieldCheckFill, RiAlarmWarningFill 
+} from 'react-icons/ri';
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
@@ -50,27 +56,31 @@ const Dashboard = () => {
       value: stats?.total_requests || 0,
       icon: FiActivity,
       color: '#3b82f6',
+      bgGradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
       change: '+12%'
     },
     {
       title: 'Blocked Requests',
       value: stats?.blocked_requests || 0,
-      icon: FiShield,
+      icon: MdBlock,
       color: '#ef4444',
+      bgGradient: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
       change: `+${stats?.blocked_requests || 0}`
     },
     {
       title: 'Requests (24h)',
       value: stats?.requests_24h || 0,
-      icon: FiClock,
+      icon: MdAccessTime,
       color: '#10b981',
+      bgGradient: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
       change: '+5%'
     },
     {
       title: 'Attacks (24h)',
       value: stats?.attacks_24h || 0,
-      icon: FiAlertTriangle,
+      icon: RiAlarmWarningFill,
       color: '#f59e0b',
+      bgGradient: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
       change: `+${stats?.attacks_24h || 0}`
     },
   ];
@@ -95,10 +105,11 @@ const Dashboard = () => {
           return (
             <div key={index} className="stat-card">
               <div className="stat-card-header">
-                <div className="stat-card-icon" style={{ backgroundColor: `${card.color}20`, color: card.color }}>
+                <div className="stat-card-icon" style={{ background: card.bgGradient }}>
                   <Icon />
                 </div>
                 <span className="stat-card-change" style={{ color: card.color }}>
+                  <FiTrendingUp style={{ fontSize: '0.75rem', marginRight: '2px' }} />
                   {card.change}
                 </span>
               </div>
@@ -106,6 +117,7 @@ const Dashboard = () => {
                 <h3 className="stat-card-value">{card.value.toLocaleString()}</h3>
                 <p className="stat-card-title">{card.title}</p>
               </div>
+              <div className="stat-card-glow" style={{ background: card.bgGradient }}></div>
             </div>
           );
         })}

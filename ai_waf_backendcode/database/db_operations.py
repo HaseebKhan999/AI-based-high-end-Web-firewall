@@ -7,9 +7,16 @@ Python 3.14 Compatible
 
 import json
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Optional, Any
 from database.db_config import get_db_cursor
+
+# Pakistan timezone (GMT+5)
+PKT = timezone(timedelta(hours=5))
+
+def get_current_time():
+    """Get current time in Pakistan timezone (GMT+5)"""
+    return datetime.now(PKT)
 
 logger = logging.getLogger(__name__)
 
@@ -52,13 +59,14 @@ class DatabaseOperations:
             with get_db_cursor() as cur:
                 cur.execute("""
                     INSERT INTO traffic_logs (
-                        ip_address, method, url, headers, body, 
+                        timestamp, ip_address, method, url, headers, body, 
                         query_params, threat_score, is_blocked, 
                         attack_type, features, response_time
                     ) VALUES (
-                        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
                     )
                 """, (
+                    get_current_time().strftime('%Y-%m-%d %H:%M:%S'),
                     request_data.get('ip_address'),
                     request_data.get('method'),
                     request_data.get('url'),
@@ -188,7 +196,7 @@ class DatabaseOperations:
                 cur.execute("""
                     SELECT COUNT(*) as recent 
                     FROM traffic_logs 
-                    WHERE timestamp > datetime('now', '-24 hours')
+                    WHERE timestamp > datetime('now', '+5 hours', '-24 hours')
                 """)
                 stats['requests_24h'] = cur.fetchone()['recent']
                 
@@ -197,7 +205,7 @@ class DatabaseOperations:
                     SELECT COUNT(*) as attacks 
                     FROM traffic_logs 
                     WHERE is_blocked = 1 
-                    AND timestamp > datetime('now', '-24 hours')
+                    AND timestamp > datetime('now', '+5 hours', '-24 hours')
                 """)
                 stats['attacks_24h'] = cur.fetchone()['attacks']
                 
@@ -278,9 +286,9 @@ class DatabaseOperations:
         try:
             with get_db_cursor() as cur:
                 cur.execute("""
-                    INSERT OR IGNORE INTO whitelist (ip_address, reason, added_by)
-                    VALUES (?, ?, ?)
-                """, (ip_address, reason, added_by))
+                    INSERT OR IGNORE INTO whitelist (ip_address, reason, added_by, created_at)
+                    VALUES (?, ?, ?, ?)
+                """, (ip_address, reason, added_by, get_current_time().strftime('%Y-%m-%d %H:%M:%S')))
                 
                 logger.info(f"✅ IP {ip_address} added to whitelist")
                 return True
@@ -345,7 +353,7 @@ class DatabaseOperations:
                     SELECT COUNT(*) as count 
                     FROM blacklist 
                     WHERE ip_address = ? 
-                    AND (expires_at IS NULL OR expires_at > datetime('now'))
+                    AND (expires_at IS NULL OR expires_at > datetime('now', '+5 hours'))
                 """, (ip_address,))
                 
                 result = cur.fetchone()
@@ -375,12 +383,12 @@ class DatabaseOperations:
         try:
             expires_at = None
             if expires_hours:
-                expires_at = datetime.now() + timedelta(hours=expires_hours)
+                expires_at = get_current_time() + timedelta(hours=expires_hours)
             
             with get_db_cursor() as cur:
                 cur.execute("""
                     INSERT OR REPLACE INTO blacklist (ip_address, reason, added_by, expires_at, created_at)
-                    VALUES (?, ?, ?, ?, datetime('now'))
+                    VALUES (?, ?, ?, ?, datetime('now', '+5 hours'))
                 """, (ip_address, reason, added_by, expires_at))
                 
                 logger.info(f"✅ IP {ip_address} added to blacklist")
@@ -415,7 +423,7 @@ class DatabaseOperations:
             with get_db_cursor() as cur:
                 cur.execute("""
                     SELECT * FROM blacklist 
-                    WHERE expires_at IS NULL OR expires_at > datetime('now')
+                    WHERE expires_at IS NULL OR expires_at > datetime('now', '+5 hours')
                     ORDER BY created_at DESC
                 """)
                 
@@ -472,7 +480,7 @@ class DatabaseOperations:
             with get_db_cursor() as cur:
                 cur.execute("""
                     INSERT OR REPLACE INTO waf_config (config_key, config_value, updated_at)
-                    VALUES (?, ?, datetime('now'))
+                    VALUES (?, ?, datetime('now', '+5 hours'))
                 """, (config_key, config_value))
                 
                 logger.info(f"✅ Config updated: {config_key} = {config_value}")
@@ -501,7 +509,7 @@ class DatabaseOperations:
                 cur.execute("""
                     INSERT OR REPLACE INTO ml_models (
                         model_name, model_version, accuracy, file_path, description, created_at
-                    ) VALUES (?, ?, ?, ?, ?, datetime('now'))
+                    ) VALUES (?, ?, ?, ?, ?, datetime('now', '+5 hours'))
                 """, (model_name, model_version, accuracy, file_path, description))
                 
                 logger.info(f"✅ Model metadata saved: {model_name} v{model_version}")

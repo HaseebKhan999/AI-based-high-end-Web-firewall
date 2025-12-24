@@ -12,9 +12,16 @@ import numpy as np
 import json
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from sklearn.ensemble import IsolationForest
 from sklearn.metrics import classification_report, confusion_matrix
+
+# Pakistan timezone (GMT+5)
+PKT = timezone(timedelta(hours=5))
+
+def get_current_time():
+    """Get current time in Pakistan timezone (GMT+5)"""
+    return datetime.now(PKT)
 
 # Add parent directory to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -97,9 +104,9 @@ class AnomalyDetector:
         print(f"\n🏋️ Training on {len(X_train)} samples...")
         self.model = IsolationForest(**default_params)
         
-        start_time = datetime.now()
+        start_time = get_current_time()
         self.model.fit(X_train)
-        training_time = (datetime.now() - start_time).total_seconds()
+        training_time = (get_current_time() - start_time).total_seconds()
         
         print(f"✅ Training completed in {training_time:.2f} seconds!")
         
@@ -107,7 +114,7 @@ class AnomalyDetector:
         self.metadata['training_time'] = training_time
         self.metadata['n_samples'] = len(X_train)
         self.metadata['model_params'] = default_params
-        self.metadata['trained_at'] = datetime.now().isoformat()
+        self.metadata['trained_at'] = get_current_time().isoformat()
         
         self.is_loaded = True
         return self.model
@@ -225,7 +232,7 @@ class AnomalyDetector:
             accuracy = metrics.get('accuracy', 0.0)
             
             # Extract model version from metadata or use timestamp
-            model_version = self.metadata.get('trained_at', datetime.now().isoformat())
+            model_version = self.metadata.get('trained_at', get_current_time().isoformat())
             
             with get_db_cursor() as cur:
                 # Check if model already exists
@@ -365,7 +372,7 @@ class AnomalyDetector:
                 'anomaly_score': anomaly_score,
                 'severity': severity,
                 'prediction': 'Anomaly' if prediction == -1 else 'Normal',
-                'timestamp': datetime.now().isoformat()
+                'timestamp': get_current_time().isoformat()
             }
             
             return result
