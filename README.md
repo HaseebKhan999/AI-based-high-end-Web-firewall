@@ -5,6 +5,7 @@ cat > README.md << 'EOF'
 - Person 1: Traffic Interception & Feature Extraction
 - Person 2: Database Management
 - Person 3: ML Model Training & Inference
+- Person 4: Frontend
 
 ## Project Structure
 - `middleware/` - Request interception
@@ -19,16 +20,14 @@ cat > README.md << 'EOF'
 ### 1. Install Dependencies
 ```bash
 pip install -r requirements.txt
+pip install -r requirement_p2.txt
 ```
 
 ### 2. Setup Database
 ```bash
-# Create PostgreSQL database
-createdb ai_waf_db
+# Create SQLite database
+python config_db.py
 
-# Run schema
-psql ai_waf_db < database/schema.sql
-```
 
 ### 3. Configure Environment
 ```bash
@@ -39,6 +38,8 @@ cp .env.example .env
 ### 4. Train ML Models (Person 3)
 ```bash
 python models/train_model.py
+python models/ml_model.py
+python anonmaly_model.py
 ```
 
 ### 5. Run Application
@@ -51,3 +52,8 @@ python app.py
 - `GET /api/admin/statistics` - Get attack statistics
 - `POST /api/traffic/analyze` - Analyze request
 EOF
+
+
+## Run Frontend
+npm install
+npm run dev
